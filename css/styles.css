@@ -22,7 +22,12 @@
     --overlay-bg: rgba(0, 0, 0, 0.5);
     --accent-subtle: hsl(240 4.8% 95.9%);
     --accent-subtle-strong: hsl(240 4.8% 92%);
-    --radius: 0.375rem;
+    --radius: 0.5rem;
+    --btn-h-default: 36px;
+    --btn-h-sm: 32px;
+    --btn-h-lg: 40px;
+    --btn-h-icon: 32px;
+    --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
     --ring: hsl(240 5.9% 10%);
     --destructive: hsl(0 84.2% 60.2%);
 }
@@ -213,11 +218,12 @@ html.tauri-app .right-sidebar {
 
 .add-btn {
     flex: 1;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 8px 12px;
+    height: var(--btn-h-default);
+    padding: 0 12px;
     border: 1px dashed var(--border-color);
     border-radius: var(--radius);
     background: transparent;
@@ -225,13 +231,17 @@ html.tauri-app .right-sidebar {
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
 }
 
 .add-btn:hover {
     border-color: var(--accent);
     color: var(--accent);
     background: var(--accent-subtle);
+}
+
+.add-btn:active {
+    transform: scale(0.98);
 }
 
 .sidebar-footer {
@@ -417,17 +427,18 @@ html.tauri-app .right-sidebar {
 }
 
 .screenshot-menu-btn {
-    width: 28px;
-    height: 28px;
+    width: var(--btn-h-icon);
+    height: var(--btn-h-icon);
     border: none;
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
     border-radius: var(--radius);
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
+    flex-shrink: 0;
 }
 
 .screenshot-menu-btn:hover {
@@ -447,7 +458,7 @@ html.tauri-app .right-sidebar {
     padding: 4px;
     min-width: 200px;
     z-index: 100;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 .screenshot-menu.open {
@@ -459,7 +470,8 @@ html.tauri-app .right-sidebar {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 8px;
+    height: var(--btn-h-sm);
+    padding: 0 8px;
     border: none;
     background: transparent;
     color: var(--text-primary);
@@ -467,7 +479,7 @@ html.tauri-app .right-sidebar {
     cursor: pointer;
     border-radius: var(--radius);
     text-align: left;
-    transition: background 0.15s ease;
+    transition: background var(--transition);
 }
 
 .screenshot-menu-item:hover {
@@ -580,7 +592,8 @@ html.tauri-app .right-sidebar {
 /* Set as Default button */
 .set-default-btn {
     width: 100%;
-    padding: 8px 12px;
+    height: var(--btn-h-default);
+    padding: 0 12px;
     margin-top: 8px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -589,7 +602,10 @@ html.tauri-app .right-sidebar {
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .set-default-btn:hover {
@@ -658,7 +674,20 @@ html.tauri-app .right-sidebar {
 
 input[type="text"],
 input[type="number"],
-select,
+select {
+    width: 100%;
+    height: var(--btn-h-default);
+    padding: 0 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    font-family: inherit;
+}
+
 textarea {
     width: 100%;
     padding: 8px 12px;
@@ -668,7 +697,7 @@ textarea {
     color: var(--text-primary);
     font-size: 14px;
     line-height: 1.5;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: border-color var(--transition), box-shadow var(--transition);
     font-family: inherit;
 }
 
@@ -702,13 +731,22 @@ input[type="range"] {
 
 input[type="range"]::-webkit-slider-thumb {
     appearance: none;
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     background: var(--accent);
     cursor: pointer;
     border: 2px solid var(--bg-secondary);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    transition: transform 0.1s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+}
+
+input[type="range"]::-webkit-slider-thumb:active {
+    transform: scale(0.95);
 }
 
 .range-value {
@@ -732,7 +770,8 @@ input[type="range"]::-webkit-slider-thumb {
 .btn-group button {
     flex: 1 1 0;
     width: 0;
-    padding: 6px 12px;
+    height: 30px;
+    padding: 0 12px;
     border: none;
     background: transparent;
     color: var(--text-secondary);
@@ -740,7 +779,7 @@ input[type="range"]::-webkit-slider-thumb {
     font-weight: 500;
     cursor: pointer;
     border-radius: calc(var(--radius) - 2px);
-    transition: all 0.15s ease;
+    transition: all var(--transition);
 }
 
 .btn-group button.active {
@@ -1091,7 +1130,7 @@ input[type="range"]::-webkit-slider-thumb {
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     cursor: pointer;
-    transition: border-color 0.15s ease;
+    transition: border-color var(--transition);
 }
 
 .output-size-trigger:hover {
@@ -1140,7 +1179,7 @@ input[type="range"]::-webkit-slider-thumb {
     border: 1px solid var(--border-color);
     border-radius: calc(var(--radius) + 2px);
     padding: 4px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     opacity: 0;
     visibility: hidden;
     transform: translateY(-4px);
@@ -1230,8 +1269,9 @@ input[type="range"]::-webkit-slider-thumb {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 8px 16px;
+    gap: 8px;
+    height: var(--btn-h-default);
+    padding: 0 16px;
     background: var(--accent);
     border: none;
     border-radius: var(--radius);
@@ -1239,7 +1279,7 @@ input[type="range"]::-webkit-slider-thumb {
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
     white-space: nowrap;
 }
 
@@ -1247,11 +1287,16 @@ input[type="range"]::-webkit-slider-thumb {
     background: var(--accent-hover);
 }
 
+.export-btn:active {
+    transform: scale(0.98);
+}
+
 .export-btn.secondary {
     background: var(--bg-secondary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
-    padding: 8px;
+    width: var(--btn-h-default);
+    padding: 0;
 }
 
 .export-btn.secondary:hover {
@@ -1293,7 +1338,7 @@ input[type="range"]::-webkit-slider-thumb {
 .modal {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: calc(var(--radius) * 3);
+    border-radius: calc(var(--radius) * 2);
     padding: 24px;
     max-width: 400px;
     width: 90%;
@@ -1346,13 +1391,21 @@ input[type="range"]::-webkit-slider-thumb {
 
 .modal-btn {
     flex: 1;
-    padding: 8px 16px;
+    height: var(--btn-h-default);
+    padding: 0 16px;
     border: none;
     border-radius: var(--radius);
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-btn:active {
+    transform: scale(0.98);
 }
 
 .modal-btn-cancel {
@@ -1467,7 +1520,8 @@ input[type="range"]::-webkit-slider-thumb {
 .ai-translate-btn {
     width: 100%;
     margin-top: 12px;
-    padding: 8px 16px;
+    height: var(--btn-h-default);
+    padding: 0 16px;
     background: var(--accent);
     border: none;
     border-radius: var(--radius);
@@ -1475,11 +1529,11 @@ input[type="range"]::-webkit-slider-thumb {
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
 }
 
 .ai-translate-btn:hover:not(:disabled) {
@@ -1552,17 +1606,17 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .modal-close {
-    width: 32px;
-    height: 32px;
+    width: var(--btn-h-icon);
+    height: var(--btn-h-icon);
     border: none;
     border-radius: var(--radius);
-    background: var(--bg-tertiary);
+    background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
 }
 
 .modal-close:hover {
@@ -1756,14 +1810,15 @@ input[type="range"]::-webkit-slider-thumb {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
+    height: var(--btn-h-default);
+    padding: 0 12px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     color: var(--text-primary);
     font-size: 13px;
     cursor: pointer;
-    transition: border-color 0.15s ease;
+    transition: border-color var(--transition);
 }
 
 .preset-dropdown-trigger:hover {
@@ -1927,13 +1982,13 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .toggle {
-    width: 40px;
-    height: 22px;
+    width: 44px;
+    height: 24px;
     background: var(--border-color);
     border-radius: 9999px;
     position: relative;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--transition);
 }
 
 .toggle.active {
@@ -1943,18 +1998,18 @@ input[type="range"]::-webkit-slider-thumb {
 .toggle::after {
     content: '';
     position: absolute;
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     background: white;
     border-radius: 50%;
     top: 2px;
     left: 2px;
-    transition: all 0.15s ease;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    transition: transform var(--transition);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .toggle.active::after {
-    left: 20px;
+    transform: translateX(20px);
 }
 
 /* Divider */
@@ -1974,14 +2029,15 @@ input[type="range"]::-webkit-slider-thumb {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
+    height: var(--btn-h-default);
+    padding: 0 12px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     color: var(--text-primary);
     font-size: 14px;
     cursor: pointer;
-    transition: border-color 0.15s ease;
+    transition: border-color var(--transition);
 }
 
 .font-picker-trigger:hover {
@@ -2223,6 +2279,84 @@ input[type="range"]::-webkit-slider-thumb {
     background: var(--text-secondary);
 }
 
+
+/* ===== Shadcn-style Tooltips ===== */
+[data-tooltip] {
+    position: relative;
+}
+
+[data-tooltip]::before,
+[data-tooltip]::after {
+    position: absolute;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 9999;
+}
+
+[data-tooltip]::before {
+    content: attr(data-tooltip);
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    padding: 6px 12px;
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    border-radius: var(--radius);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+[data-tooltip]::after {
+    content: '';
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    border: 4px solid transparent;
+    border-top-color: var(--text-primary);
+}
+
+[data-tooltip]:hover::before,
+[data-tooltip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Bottom tooltip variant */
+[data-tooltip-pos="bottom"]::before {
+    bottom: auto;
+    top: calc(100% + 6px);
+    transform: translateX(-50%) translateY(-4px);
+}
+
+[data-tooltip-pos="bottom"]::after {
+    bottom: auto;
+    top: calc(100% + 2px);
+    transform: translateX(-50%) translateY(-4px);
+    border-top-color: transparent;
+    border-bottom-color: var(--text-primary);
+}
+
+[data-tooltip-pos="bottom"]:hover::before,
+[data-tooltip-pos="bottom"]:hover::after {
+    transform: translateX(-50%) translateY(0);
+}
+
+/* ===== Focus Visible (shadcn ring pattern) ===== */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+
 /* Section collapse */
 .section-header {
     display: flex;
@@ -2384,7 +2518,7 @@ input[type="range"]::-webkit-slider-thumb {
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     cursor: pointer;
-    transition: border-color 0.15s ease;
+    transition: border-color var(--transition);
 }
 
 .project-trigger:hover {
@@ -2438,7 +2572,7 @@ input[type="range"]::-webkit-slider-thumb {
     border: 1px solid var(--border-color);
     border-radius: calc(var(--radius) + 2px);
     padding: 4px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     opacity: 0;
     visibility: hidden;
     transform: translateY(-4px);
@@ -2492,22 +2626,29 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .project-btn {
-    padding: 8px;
+    width: var(--btn-h-default);
+    height: var(--btn-h-default);
+    padding: 0;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     color: var(--text-secondary);
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
+    flex-shrink: 0;
 }
 
 .project-btn:hover {
     background: var(--accent-subtle);
     color: var(--text-primary);
     border-color: var(--text-secondary);
+}
+
+.project-btn:active {
+    transform: scale(0.95);
 }
 
 .project-btn.danger:hover {
@@ -2529,22 +2670,27 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .settings-btn {
-    width: 32px;
-    height: 32px;
+    width: var(--btn-h-icon);
+    height: var(--btn-h-icon);
     border: none;
     border-radius: var(--radius);
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
+    flex-shrink: 0;
 }
 
 .settings-btn:hover {
     background: var(--accent-subtle);
     color: var(--text-primary);
+}
+
+.settings-btn:active {
+    transform: scale(0.95);
 }
 
 .sidebar-header-buttons {
@@ -2645,16 +2791,16 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .language-btn {
-    width: 32px;
-    height: 32px;
+    width: var(--btn-h-icon);
+    height: var(--btn-h-icon);
     border: none;
     border-radius: var(--radius);
     background: transparent;
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
 }
 
 .language-btn:hover {
@@ -2957,7 +3103,8 @@ input[type="range"]::-webkit-slider-thumb {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 12px;
+    height: var(--btn-h-sm);
+    padding: 0 12px;
     border: none;
     background: var(--accent);
     color: var(--bg-secondary);
@@ -2965,7 +3112,7 @@ input[type="range"]::-webkit-slider-thumb {
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
 }
 
 .translation-upload:hover {
@@ -3192,23 +3339,28 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .add-element-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 8px 12px;
+    height: var(--btn-h-sm);
+    padding: 0 12px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     color: var(--text-primary);
     font-size: 12px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
 }
 
 .add-element-btn:hover {
     background: var(--accent-subtle);
     border-color: var(--text-secondary);
+}
+
+.add-element-btn:active {
+    transform: scale(0.97);
 }
 
 .elements-list {
@@ -3348,19 +3500,20 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* ===== Popouts Tab ===== */
 .add-popout-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     width: 100%;
-    padding: 8px 12px;
+    height: var(--btn-h-sm);
+    padding: 0 12px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     color: var(--text-primary);
     font-size: 12px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
     margin-bottom: 12px;
 }
 
@@ -3632,10 +3785,10 @@ input[type="range"]::-webkit-slider-thumb {
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s ease;
+    transition: all var(--transition);
 }
 
 .screenshots-add-btn:hover {
