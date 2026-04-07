@@ -36,9 +36,18 @@
         --accent-subtle: rgba(0, 122, 255, 0.06);
         --accent-subtle-strong: rgba(0, 122, 255, 0.1);
     }
-    .tip-box img { filter: none; }
-    .settings-btn img { filter: invert(0.4); }
-    .settings-btn:hover img { filter: invert(0); }
+
+    .tip-box img {
+        filter: none;
+    }
+
+    .settings-btn img {
+        filter: invert(0.4);
+    }
+
+    .settings-btn:hover img {
+        filter: invert(0);
+    }
 }
 
 /* Manual theme overrides */
@@ -58,9 +67,17 @@ html[data-theme="light"] {
     --accent-subtle-strong: rgba(0, 122, 255, 0.1);
 }
 
-html[data-theme="light"] .tip-box img { filter: none; }
-html[data-theme="light"] .settings-btn img { filter: invert(0.4); }
-html[data-theme="light"] .settings-btn:hover img { filter: invert(0); }
+html[data-theme="light"] .tip-box img {
+    filter: none;
+}
+
+html[data-theme="light"] .settings-btn img {
+    filter: invert(0.4);
+}
+
+html[data-theme="light"] .settings-btn:hover img {
+    filter: invert(0);
+}
 
 html[data-theme="dark"] {
     --bg-primary: #0a0a0b;
@@ -78,7 +95,8 @@ html[data-theme="dark"] {
     --accent-subtle-strong: rgba(10, 132, 255, 0.15);
 }
 
-html, body {
+html,
+body {
     /* Prevent browser back/forward gesture from horizontal swipe */
     overscroll-behavior-x: none;
 }
@@ -98,7 +116,8 @@ html.tauri-app {
 
 html.tauri-app body {
     padding-top: var(--tauri-titlebar-height);
-    overflow: hidden; /* Prevent body scroll in Tauri */
+    overflow: hidden;
+    /* Prevent body scroll in Tauri */
 }
 
 /* Fixed drag region - added via JS as a real DOM element */
@@ -1423,8 +1442,13 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .ai-translate-status {
@@ -1542,7 +1566,7 @@ input[type="range"]::-webkit-slider-thumb {
     margin: 0;
 }
 
-.settings-provider-option input[type="radio"]:checked + .provider-label {
+.settings-provider-option input[type="radio"]:checked+.provider-label {
     color: var(--accent);
 }
 
@@ -2368,7 +2392,8 @@ input[type="range"]::-webkit-slider-thumb {
     position: absolute;
     top: calc(100% + 4px);
     left: 0;
-    width: calc(320px - 40px); /* Full sidebar width minus padding */
+    width: calc(320px - 40px);
+    /* Full sidebar width minus padding */
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 10px;
@@ -2550,13 +2575,27 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 @keyframes tooltipPulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.02); }
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.02);
+    }
 }
 
 @keyframes tooltipFadeIn {
-    from { opacity: 0; transform: translateY(-5px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Language picker */

@@ -11,12 +11,9 @@ RUN rm -rf /usr/share/nginx/html/*
 
 # Copy application files
 COPY index.html /usr/share/nginx/html/
-COPY app.js /usr/share/nginx/html/
-COPY styles.css /usr/share/nginx/html/
-COPY three-renderer.js /usr/share/nginx/html/
-COPY language-utils.js /usr/share/nginx/html/
-COPY magical-titles.js /usr/share/nginx/html/
-COPY llm.js /usr/share/nginx/html/
+COPY html/ /usr/share/nginx/html/html/
+COPY js/ /usr/share/nginx/html/js/
+COPY css/ /usr/share/nginx/html/css/
 
 # Copy assets
 COPY models/ /usr/share/nginx/html/models/
