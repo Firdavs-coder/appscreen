@@ -3611,16 +3611,20 @@ function setupEventListeners() {
     fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
 
     // Add screenshots button
-    document.getElementById('add-screenshots-btn').addEventListener('click', () => fileInput.click());
+    document.querySelectorAll('#add-screenshots-btn').forEach(btn => {
+        btn.addEventListener('click', () => fileInput.click());
+    });
 
     // Add blank screen button
-    document.getElementById('add-blank-btn').addEventListener('click', () => {
-        createNewScreenshot(null, null, 'Blank Screen', null, state.outputDevice);
-        state.selectedIndex = state.screenshots.length - 1;
-        updateScreenshotList();
-        syncUIWithState();
-        updateGradientStopsUI();
-        updateCanvas();
+    document.querySelectorAll('#add-blank-btn, #add-blank-topbar-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            createNewScreenshot(null, null, 'Blank Screen', null, state.outputDevice);
+            state.selectedIndex = state.screenshots.length - 1;
+            updateScreenshotList();
+            syncUIWithState();
+            updateGradientStopsUI();
+            updateCanvas();
+        });
     });
 
     // Make the entire sidebar content area a drop zone
@@ -4127,7 +4131,10 @@ function setupEventListeners() {
     // Close screenshot menus when clicking outside
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.screenshot-menu-wrapper')) {
-            document.querySelectorAll('.screenshot-menu.open').forEach(m => m.classList.remove('open'));
+            document.querySelectorAll('.screenshot-menu.open').forEach(m => {
+                m.classList.remove('open');
+                m.closest('.screenshot-menu-wrapper')?.querySelector('.screenshot-menu-btn')?.classList.remove('active');
+            });
         }
     });
 
@@ -6420,9 +6427,13 @@ function updateScreenshotList() {
                 e.stopPropagation();
                 // Close all other menus first
                 document.querySelectorAll('.screenshot-menu.open').forEach(m => {
-                    if (m !== menu) m.classList.remove('open');
+                    if (m !== menu) {
+                        m.classList.remove('open');
+                        m.closest('.screenshot-menu-wrapper')?.querySelector('.screenshot-menu-btn')?.classList.remove('active');
+                    }
                 });
                 menu.classList.toggle('open');
+                menuBtn.classList.toggle('active', menu.classList.contains('open'));
             });
         }
 
