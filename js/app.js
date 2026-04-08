@@ -104,6 +104,13 @@ let selectedElementId = null;
 let selectedPopoutId = null;
 let draggingElement = null;
 
+// Global custom tooltip state
+let customTooltipEl = null;
+let customTooltipTimer = null;
+let customTooltipTarget = null;
+let customTooltipVisible = false;
+let tooltipMutationObserver = null;
+
 // Preload laurel SVG images for element frames
 const laurelImages = {};
 ['laurel-simple-left', 'laurel-detailed-left'].forEach(name => {
@@ -523,14 +530,193 @@ function setupSliderResetButtons() {
 
         const btn = document.createElement('button');
         btn.className = 'slider-reset-btn';
-        btn.title = 'Reset to default';
         btn.type = 'button';
-        btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 1 3 6.75"/><polyline points="3 16 3 10 9 10"/></svg>';
+        btn.setAttribute('data-tooltip', 'Reset to default');
+        btn.setAttribute('aria-label', 'Reset to default');
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a4 4 0 1 1 0 8h-1"/></svg>';
         btn.addEventListener('click', () => {
             slider.value = slider.defaultValue;
             slider.dispatchEvent(new Event('input', { bubbles: true }));
         });
         row.appendChild(btn);
+    });
+}
+
+function ensureCustomTooltipElement() {
+    if (customTooltipEl) return customTooltipEl;
+    const el = document.createElement('div');
+    el.className = 'custom-tooltip-floating';
+    el.setAttribute('role', 'tooltip');
+    document.body.appendChild(el);
+    customTooltipEl = el;
+    return el;
+}
+
+function migrateTitleToCustomTooltip(root = document) {
+    if (!root || !root.querySelectorAll) return;
+
+    root.querySelectorAll('[title]').forEach(el => {
+        const title = el.getAttribute('title');
+        if (!title) return;
+        if (!el.hasAttribute('data-tooltip')) {
+            el.setAttribute('data-tooltip', title);
+        }
+        if (!el.hasAttribute('aria-label') && (el.tagName === 'BUTTON' || el.tagName === 'A')) {
+            el.setAttribute('aria-label', title);
+        }
+        el.removeAttribute('title');
+    });
+
+    if (root.matches && root.matches('[title]')) {
+        const title = root.getAttribute('title');
+        if (title) {
+            if (!root.hasAttribute('data-tooltip')) {
+                root.setAttribute('data-tooltip', title);
+            }
+            if (!root.hasAttribute('aria-label') && (root.tagName === 'BUTTON' || root.tagName === 'A')) {
+                root.setAttribute('aria-label', title);
+            }
+            root.removeAttribute('title');
+        }
+    }
+}
+
+function hideCustomTooltip() {
+    if (!customTooltipEl) return;
+    customTooltipEl.classList.remove('visible', 'bottom', 'left-align');
+    customTooltipVisible = false;
+}
+
+function positionCustomTooltip(target) {
+    if (!target || !customTooltipEl) return;
+
+    const rect = target.getBoundingClientRect();
+    const margin = 8;
+    let placeBottom = target.getAttribute('data-tooltip-pos') === 'bottom';
+    const alignLeft = target.getAttribute('data-tooltip-align') === 'left';
+
+    customTooltipEl.classList.toggle('bottom', placeBottom);
+    customTooltipEl.classList.toggle('left-align', alignLeft);
+
+    let left = alignLeft ? rect.left : rect.left + rect.width / 2;
+    let top = placeBottom ? rect.bottom + margin : rect.top - margin;
+
+    customTooltipEl.style.left = `${Math.round(left)}px`;
+    customTooltipEl.style.top = `${Math.round(top)}px`;
+
+    let tooltipRect = customTooltipEl.getBoundingClientRect();
+    const minX = 8;
+    const maxX = window.innerWidth - 8;
+    if (tooltipRect.left < minX) {
+        left += (minX - tooltipRect.left);
+    } else if (tooltipRect.right > maxX) {
+        left -= (tooltipRect.right - maxX);
+    }
+
+    if (!placeBottom && tooltipRect.top < 8) {
+        placeBottom = true;
+        top = rect.bottom + margin;
+        customTooltipEl.classList.add('bottom');
+    } else if (placeBottom && tooltipRect.bottom > window.innerHeight - 8) {
+        placeBottom = false;
+        top = rect.top - margin;
+        customTooltipEl.classList.remove('bottom');
+    }
+
+    customTooltipEl.style.left = `${Math.round(left)}px`;
+    customTooltipEl.style.top = `${Math.round(top)}px`;
+}
+
+function showCustomTooltip(target) {
+    const text = target?.getAttribute('data-tooltip');
+    if (!target || !text) return;
+
+    const el = ensureCustomTooltipElement();
+    el.textContent = text;
+    el.classList.add('visible');
+    customTooltipVisible = true;
+    positionCustomTooltip(target);
+}
+
+function setupCustomTooltips() {
+    migrateTitleToCustomTooltip(document);
+    ensureCustomTooltipElement();
+
+    if (!tooltipMutationObserver) {
+        tooltipMutationObserver = new MutationObserver(mutations => {
+            mutations.forEach(mutation => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'title') {
+                    migrateTitleToCustomTooltip(mutation.target);
+                }
+
+                if (mutation.type === 'childList') {
+                    mutation.addedNodes.forEach(node => {
+                        if (node.nodeType === 1) {
+                            migrateTitleToCustomTooltip(node);
+                        }
+                    });
+                }
+            });
+        });
+
+        tooltipMutationObserver.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['title']
+        });
+    }
+
+    document.addEventListener('mouseover', event => {
+        const target = event.target.closest('[data-tooltip]');
+        if (target === customTooltipTarget) return;
+
+        clearTimeout(customTooltipTimer);
+        hideCustomTooltip();
+        customTooltipTarget = target;
+
+        if (!target) return;
+
+        customTooltipTimer = setTimeout(() => {
+            if (customTooltipTarget === target) {
+                showCustomTooltip(target);
+            }
+        }, 1000);
+    });
+
+    document.addEventListener('mouseout', event => {
+        if (!customTooltipTarget) return;
+
+        const leftTarget = event.target.closest('[data-tooltip]');
+        if (leftTarget !== customTooltipTarget) return;
+
+        if (event.relatedTarget && customTooltipTarget.contains(event.relatedTarget)) {
+            return;
+        }
+
+        clearTimeout(customTooltipTimer);
+        customTooltipTarget = null;
+        hideCustomTooltip();
+    });
+
+    document.addEventListener('scroll', () => {
+        hideCustomTooltip();
+    }, true);
+
+    document.addEventListener('mousedown', () => {
+        clearTimeout(customTooltipTimer);
+        hideCustomTooltip();
+    });
+
+    document.addEventListener('keydown', () => {
+        clearTimeout(customTooltipTimer);
+        hideCustomTooltip();
+    });
+
+    window.addEventListener('resize', () => {
+        if (customTooltipVisible && customTooltipTarget) {
+            positionCustomTooltip(customTooltipTarget);
+        }
     });
 }
 
@@ -1317,6 +1503,12 @@ let suppressSwitchModelUpdate = false;  // Flag to suppress updateCanvas from sw
 const fileInput = document.getElementById('file-input');
 const screenshotList = document.getElementById('screenshot-list');
 const noScreenshot = document.getElementById('no-screenshot');
+const canvasContextMenu = document.getElementById('canvas-context-menu');
+
+// Keep context menu at document root so fixed positioning is stable
+if (canvasContextMenu && canvasContextMenu.parentElement !== document.body) {
+    document.body.appendChild(canvasContextMenu);
+}
 
 // IndexedDB for larger storage (can store hundreds of MB vs localStorage's 5-10MB)
 let db = null;
@@ -1477,6 +1669,7 @@ function initSync() {
     setupEventListeners();
     setupElementEventListeners();
     setupPopoutEventListeners();
+    setupCustomTooltips();
     setupSliderResetButtons();
     initFontPicker();
     updateGradientStopsUI();
@@ -4138,6 +4331,109 @@ function setupEventListeners() {
         }
     });
 
+    // Canvas right-click context menu
+    if (canvasContextMenu) {
+        canvasWrapper.addEventListener('contextmenu', (e) => {
+            if (!state.screenshots.length) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const targetIndex = Math.min(Math.max(0, state.selectedIndex), state.screenshots.length - 1);
+            if (state.selectedIndex !== targetIndex) {
+                state.selectedIndex = targetIndex;
+                updateScreenshotList();
+                syncUIWithState();
+                updateGradientStopsUI();
+                updateCanvas();
+            }
+
+            openCanvasContextMenu(e.clientX, e.clientY, targetIndex);
+        });
+
+        canvasContextMenu.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#canvas-context-menu')) {
+                closeCanvasContextMenu();
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeCanvasContextMenu();
+            }
+        });
+
+        window.addEventListener('resize', closeCanvasContextMenu);
+
+        canvasContextMenu.querySelector('.canvas-menu-translations')?.addEventListener('click', () => {
+            const index = getCanvasContextTargetIndex();
+            closeCanvasContextMenu();
+            if (index === null) return;
+            openScreenshotTranslationsModal(index);
+        });
+
+        canvasContextMenu.querySelector('.canvas-menu-replace')?.addEventListener('click', () => {
+            const index = getCanvasContextTargetIndex();
+            closeCanvasContextMenu();
+            if (index === null) return;
+            replaceScreenshot(index);
+        });
+
+        canvasContextMenu.querySelector('.canvas-menu-download')?.addEventListener('click', async () => {
+            const index = getCanvasContextTargetIndex();
+            closeCanvasContextMenu();
+            if (index === null) return;
+
+            state.selectedIndex = index;
+            updateScreenshotList();
+            syncUIWithState();
+            updateGradientStopsUI();
+            updateCanvas();
+            await exportCurrent();
+        });
+
+        canvasContextMenu.querySelector('.canvas-menu-transfer')?.addEventListener('click', () => {
+            const index = getCanvasContextTargetIndex();
+            closeCanvasContextMenu();
+            if (index === null) return;
+            state.transferTarget = index;
+            updateScreenshotList();
+        });
+
+        canvasContextMenu.querySelector('.canvas-menu-apply-all')?.addEventListener('click', () => {
+            const index = getCanvasContextTargetIndex();
+            closeCanvasContextMenu();
+            if (index === null) return;
+            showApplyStyleModal(index);
+        });
+
+        canvasContextMenu.querySelector('.canvas-menu-duplicate')?.addEventListener('click', () => {
+            const index = getCanvasContextTargetIndex();
+            closeCanvasContextMenu();
+            if (index === null) return;
+            duplicateScreenshot(index);
+        });
+
+        canvasContextMenu.querySelector('.canvas-menu-remove')?.addEventListener('click', () => {
+            const index = getCanvasContextTargetIndex();
+            closeCanvasContextMenu();
+            if (index === null) return;
+
+            state.screenshots.splice(index, 1);
+            if (state.selectedIndex >= state.screenshots.length) {
+                state.selectedIndex = Math.max(0, state.screenshots.length - 1);
+            }
+            updateScreenshotList();
+            syncUIWithState();
+            updateGradientStopsUI();
+            updateCanvas();
+        });
+    }
+
     // Gradient presets
     document.querySelectorAll('.preset-swatch').forEach(swatch => {
         swatch.addEventListener('click', () => {
@@ -4553,8 +4849,8 @@ function setupEventListeners() {
     });
 
     // Export buttons
-    document.getElementById('export-current').addEventListener('click', exportCurrent);
-    document.getElementById('export-all').addEventListener('click', exportAll);
+    document.getElementById('export-current')?.addEventListener('click', exportCurrent);
+    document.getElementById('export-all')?.addEventListener('click', exportAll);
 
     // Position presets
     document.querySelectorAll('.position-preset').forEach(btn => {
@@ -4679,8 +4975,10 @@ function updateLanguageMenu() {
 }
 
 function updateLanguageButton() {
-    const flag = languageFlags[state.currentLanguage] || '🏳️';
-    document.getElementById('language-btn-flag').textContent = flag;
+    const btn = document.getElementById('language-btn');
+    if (!btn) return;
+    const currentLabel = languageNames[state.currentLanguage] || state.currentLanguage.toUpperCase();
+    btn.title = `Language (${currentLabel})`;
 }
 
 function switchGlobalLanguage(lang) {
@@ -6522,6 +6820,45 @@ function cancelTransfer() {
     updateScreenshotList();
 }
 
+function getCanvasContextTargetIndex() {
+    if (!state.screenshots.length) return null;
+    const menuIndex = parseInt(canvasContextMenu?.dataset.index || '', 10);
+    const fallbackIndex = Number.isInteger(menuIndex) ? menuIndex : state.selectedIndex;
+    return Math.min(Math.max(0, fallbackIndex), state.screenshots.length - 1);
+}
+
+function closeCanvasContextMenu() {
+    if (!canvasContextMenu) return;
+    canvasContextMenu.classList.remove('open');
+    canvasContextMenu.style.left = '';
+    canvasContextMenu.style.top = '';
+    canvasContextMenu.dataset.index = '';
+    canvasContextMenu.setAttribute('aria-hidden', 'true');
+}
+
+function openCanvasContextMenu(x, y, screenshotIndex) {
+    if (!canvasContextMenu) return;
+
+    canvasContextMenu.dataset.index = String(screenshotIndex);
+    canvasContextMenu.classList.add('open');
+    canvasContextMenu.setAttribute('aria-hidden', 'false');
+
+    const margin = 8;
+    const menuRect = canvasContextMenu.getBoundingClientRect();
+    let left = x;
+    let top = y;
+
+    if (left + menuRect.width > window.innerWidth - margin) {
+        left = window.innerWidth - menuRect.width - margin;
+    }
+    if (top + menuRect.height > window.innerHeight - margin) {
+        top = window.innerHeight - menuRect.height - margin;
+    }
+
+    canvasContextMenu.style.left = `${Math.max(margin, left)}px`;
+    canvasContextMenu.style.top = `${Math.max(margin, top)}px`;
+}
+
 function transferStyle(sourceIndex, targetIndex) {
     const source = state.screenshots[sourceIndex];
     const target = state.screenshots[targetIndex];
@@ -6703,7 +7040,7 @@ function updateGradientStopsUI() {
             <input type="color" value="${stop.color}" data-stop="${index}">
             <input type="number" value="${stop.position}" min="0" max="100" data-stop="${index}">
             <span>%</span>
-            ${index > 1 ? `<button class="screenshot-delete" data-stop="${index}">
+            ${index > 1 ? `<button class="screenshot-delete gradient-stop-delete" type="button" title="Remove color stop" aria-label="Remove color stop" data-stop="${index}">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 6L6 18M6 6l12 12"/>
                 </svg>

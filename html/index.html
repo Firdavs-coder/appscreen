@@ -115,7 +115,16 @@
                         <div class="sidebar-header-buttons">
                             <div class="language-picker" id="language-picker">
                                 <button class="language-btn" id="language-btn" title="Language">
-                                    <span class="language-btn-flag" id="language-btn-flag">🇺🇸</span>
+                                    <span class="language-btn-flag" id="language-btn-flag" aria-hidden="true">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="m5 8 6 6"/>
+                                            <path d="m4 14 6-6 2-3"/>
+                                            <path d="M2 5h12"/>
+                                            <path d="M7 2v3"/>
+                                            <path d="m22 22-5-10-5 10"/>
+                                            <path d="M14 18h6"/>
+                                        </svg>
+                                    </span>
                                 </button>
                                 <div class="language-menu" id="language-menu">
                                     <div class="language-menu-items" id="language-menu-items">
@@ -144,7 +153,11 @@
                                 </svg>
                             </button>
                             <button class="settings-btn" id="about-btn" title="About">
-                                <img src="img/info.svg" width="18" height="18" alt="About">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="12" y1="16" x2="12" y2="12"/>
+                                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                                </svg>
                             </button>
                             <button class="settings-btn" id="settings-btn" title="Settings">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -272,11 +285,7 @@
                                 <line x1="12" y1="8" x2="12" y2="16"></line>
                                 <line x1="8" y1="12" x2="16" y2="12"></line>
                             </svg>
-                        </button>
-                        <button class="export-btn secondary" id="export-current" title="Export current screenshot">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-                            </svg>
+                        Add screenshot
                         </button>
                     </div>
                     <button class="export-btn export-all-btn" id="export-all" title="Export all screenshots as ZIP">
@@ -309,6 +318,45 @@
                         </svg>
                         <p>Upload screenshots to get started</p>
                     </div>
+                </div>
+                <div class="canvas-context-menu screenshot-menu" id="canvas-context-menu" role="menu" aria-hidden="true">
+                    <button class="screenshot-menu-item canvas-menu-translations" type="button">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 8l6 6M4 14l6-6 2-3M2 5h12M7 2v3M22 22l-5-10-5 10M14 18h6"/>
+                        </svg>
+                        Manage Translations
+                    </button>
+                    <button class="screenshot-menu-item canvas-menu-replace" type="button">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        Replace Screenshot
+                    </button>
+                    <button class="screenshot-menu-item canvas-menu-download" type="button">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <path d="M7 10l5 5 5-5"/>
+                            <path d="M12 15V3"/>
+                        </svg>
+                        Download
+                    </button>
+                    <div class="canvas-context-menu-divider"></div>
+                    <button class="screenshot-menu-item canvas-menu-duplicate" type="button">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                        Duplicate
+                    </button>
+                    <div class="canvas-context-menu-divider"></div>
+                    <button class="screenshot-menu-item canvas-menu-remove danger" type="button">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                        Remove
+                    </button>
                 </div>
                 <div class="side-preview side-preview-right" id="side-preview-right">
                     <canvas id="preview-canvas-right"></canvas>
@@ -777,7 +825,11 @@
                 </div><!-- end 2d-only-settings -->
 
                 <div id="3d-tip" class="tip-box" style="display: none;">
-                    <img src="img/info.svg" width="16" height="16" alt="Info">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
                     <div class="tip-content">
                         <strong>Interactive Controls</strong>
                         <span>Drag on preview to rotate • Alt+drag to move</span>
@@ -1772,15 +1824,22 @@
     <div class="modal-overlay" id="about-modal">
         <div class="modal">
             <div class="modal-icon" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);">
-                <img src="img/info.svg" width="32" height="32" alt="Info" style="filter: invert(0.5) sepia(1) saturate(5) hue-rotate(200deg);">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--accent);">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
             </div>
             <h3 class="modal-title">App Store Screenshot Generator</h3>
-            <p class="modal-message" style="margin-bottom: 16px;">A free vibe coded tool for creating beautiful App Store screenshots with customizable backgrounds, text overlays, and device frames.</p>
-            <p class="modal-message" style="margin-bottom: 16px;">Created by <a href="https://yuzuhub.com/en" target="_blank" style="color: var(--accent);">Stefan from yuzuhub.com</a></p>
-            <p class="modal-message" style="margin-bottom: 16px;">This project is free and open source under the MIT License.</p>
-            <p class="modal-message" style="margin-bottom: 8px;">
-                <a href="https://yuzu-hub.github.io/appscreen/" target="_blank" style="color: var(--accent);">Live Version</a> ·
-                <a href="https://github.com/YUZU-Hub/appscreen" target="_blank" style="color: var(--accent);">GitHub Repo</a>
+            <p class="modal-message" style="margin-bottom: 12px; text-align: left;">
+                • <strong>Project Panel (left):</strong> Create/rename/delete projects, add/reorder screenshots, and switch language.<br>
+                • <strong>Canvas (center):</strong> Live preview with right-click menu (manage, replace, download, duplicate, remove).<br>
+                • <strong>Settings Panel (right):</strong> Background, Device, Text, Elements, Popouts controls.<br>
+                • <strong>Background Tools:</strong> Gradient presets/stops, solid color, image + blur/overlay, optional noise.<br>
+                • <strong>Device Tools:</strong> 2D/3D modes, position presets, corner radius, shadow, border.<br>
+                • <strong>Text Tools:</strong> Headline/subheadline, font picker, style controls, per-language layout.<br>
+                • <strong>Language & AI:</strong> Multi-language text and AI translation (Anthropic/OpenAI/Google in Settings).<br>
+                • <strong>Export:</strong> Select output size, export all screenshots as ZIP.
             </p>
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-confirm" id="about-modal-close" style="background: var(--accent);">Close</button>

@@ -513,6 +513,22 @@ html.tauri-app .right-sidebar {
     opacity: 0.6;
 }
 
+.canvas-context-menu {
+    position: fixed;
+    right: auto;
+    top: auto;
+    margin-top: 0;
+    min-width: 260px;
+    z-index: 1200;
+    border-radius: 0px;
+}
+
+.canvas-context-menu-divider {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--border-color);
+}
+
 /* Transfer mode styles */
 .transfer-hint {
     display: flex;
@@ -956,6 +972,42 @@ input[type="range"]::-webkit-slider-thumb {
     font-size: 13px;
 }
 
+.gradient-stop .gradient-stop-delete {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.gradient-stop .gradient-stop-delete:hover {
+    border-color: var(--destructive);
+    color: var(--destructive);
+    background: var(--accent-subtle);
+}
+
+.gradient-stop .gradient-stop-delete:active {
+    transform: scale(0.96);
+}
+
+.gradient-stop .gradient-stop-delete:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.gradient-stop .gradient-stop-delete svg {
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+}
+
 .add-stop-btn {
     width: 100%;
     padding: 8px;
@@ -1340,6 +1392,11 @@ input[type="range"]::-webkit-slider-thumb {
     transform: scale(0.95) translateY(8px);
     transition: transform 0.15s ease;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+#about-modal .modal {
+    max-width: 620px;
+    width: min(92vw, 620px);
 }
 
 .modal-overlay.visible .modal {
@@ -2697,8 +2754,17 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .language-btn-flag {
-    font-size: 18px;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     line-height: 1;
+}
+
+.language-btn-flag svg {
+    width: 16px;
+    height: 16px;
 }
 
 .language-menu {
@@ -3874,6 +3940,14 @@ textarea:focus-visible {
     box-shadow: none;
 }
 
+/* Disable focus border/ring on all inputs */
+input:focus,
+input:focus-visible {
+    outline: none !important;
+    border-color: var(--border-color) !important;
+    box-shadow: none !important;
+}
+
 /* Button active feedback */
 .add-btn:active,
 .export-btn:active,
@@ -3950,90 +4024,46 @@ input[type="range"]::-webkit-slider-thumb:active {
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
 }
 
-/* Custom black tooltip (shadcn-style) */
-[data-tooltip] {
-    position: relative;
+/* Global custom tooltip (fixed overlay, never clipped by container overflow) */
+[data-tooltip]::before,
+[data-tooltip]::after {
+    display: none !important;
 }
 
-[data-tooltip]::before {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%) translateY(4px);
-    padding: 6px 12px;
-    background: hsl(240 10% 3.9%);
-    color: hsl(0 0% 98%);
+.custom-tooltip-floating {
+    position: fixed;
+    left: 0;
+    top: 0;
+    transform: translate(-50%, calc(-100% - 8px));
+    background: #000;
+    color: #fff;
+    border-radius: 0;
+    padding: 6px 10px;
     font-size: 12px;
     font-weight: 500;
-    line-height: 1.4;
+    line-height: 1.3;
     white-space: nowrap;
-    border-radius: calc(var(--radius) - 2px);
     pointer-events: none;
     opacity: 0;
-    transition: opacity var(--transition), transform var(--transition);
-    z-index: 9999;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    letter-spacing: -0.01em;
+    z-index: 2147483647;
+    transition: opacity 0.12s ease;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
-[data-tooltip]::after {
-    content: '';
-    position: absolute;
-    bottom: calc(100% + 4px);
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: hsl(240 10% 3.9%);
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity var(--transition);
-    z-index: 9999;
-}
-
-[data-tooltip]:hover::before {
+.custom-tooltip-floating.visible {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
-    transition-delay: 0.3s;
 }
 
-[data-tooltip]:hover::after {
-    opacity: 1;
-    transition-delay: 0.3s;
+.custom-tooltip-floating.bottom {
+    transform: translate(-50%, 8px);
 }
 
-/* Tooltip position variants */
-[data-tooltip-pos="bottom"]::before {
-    bottom: auto;
-    top: calc(100% + 8px);
-    transform: translateX(-50%) translateY(-4px);
+.custom-tooltip-floating.left-align {
+    transform: translate(0, calc(-100% - 8px));
 }
 
-[data-tooltip-pos="bottom"]::after {
-    bottom: auto;
-    top: calc(100% + 4px);
-    border-top-color: transparent;
-    border-bottom-color: hsl(240 10% 3.9%);
-    transform: translateX(-50%);
-}
-
-[data-tooltip-pos="bottom"]:hover::before {
-    transform: translateX(-50%) translateY(0);
-}
-
-/* Tooltip on left-aligned items: prevent clipping */
-[data-tooltip-align="left"]::before {
-    left: 0;
-    transform: translateX(0) translateY(4px);
-}
-
-[data-tooltip-align="left"]:hover::before {
-    transform: translateX(0) translateY(0);
-}
-
-[data-tooltip-align="left"]::after {
-    left: 12px;
-    transform: none;
+.custom-tooltip-floating.left-align.bottom {
+    transform: translate(0, 8px);
 }
 
 /* Project menu inherits trigger width */
@@ -4081,11 +4111,13 @@ input[type="range"]::-webkit-slider-thumb:active {
     border: 1px solid var(--border-color);
     border-radius: 0px;
     background: var(--bg-secondary);
+    color: var(--text-secondary);
 }
 
 .project-buttons .language-btn:hover {
     background: var(--accent-subtle);
     border-color: var(--text-secondary);
+    color: var(--text-primary);
 }
 
 /* Wider dropdowns */
