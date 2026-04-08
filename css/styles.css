@@ -961,7 +961,7 @@ input[type="range"]::-webkit-slider-thumb {
     font-size: 13px;
     cursor: pointer;
     transition: all 0.15s ease;
-    margin-top: 4px;
+    margin-top: 8px;
 }
 
 .add-stop-btn:hover {
