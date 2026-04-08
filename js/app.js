@@ -6757,7 +6757,7 @@ function updateCanvas() {
 
     // Scale for preview
     const maxPreviewWidth = 400;
-    const maxPreviewHeight = 700;
+    const maxPreviewHeight = 630;
     const scale = Math.min(maxPreviewWidth / dims.width, maxPreviewHeight / dims.height);
     canvas.style.width = (dims.width * scale) + 'px';
     canvas.style.height = (dims.height * scale) + 'px';
@@ -6811,7 +6811,7 @@ function updateSidePreviews() {
     const dims = getCanvasDimensions();
     // Same scale as main preview
     const maxPreviewWidth = 400;
-    const maxPreviewHeight = 700;
+    const maxPreviewHeight = 630;
     const previewScale = Math.min(maxPreviewWidth / dims.width, maxPreviewHeight / dims.height);
 
     // Initialize Three.js if any screenshot uses 3D mode (needed for side previews)
@@ -6901,7 +6901,7 @@ function slideToScreenshot(newIndex, direction) {
 
     const dims = getCanvasDimensions();
     const maxPreviewWidth = 400;
-    const maxPreviewHeight = 700;
+    const maxPreviewHeight = 630;
     const previewScale = Math.min(maxPreviewWidth / dims.width, maxPreviewHeight / dims.height);
     const slideDistance = dims.width * previewScale + 10; // canvas width + gap
 

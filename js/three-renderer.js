@@ -147,7 +147,7 @@ function initThreeJS() {
     threeScene.background = new THREE.Color(0x667eea); // Default gradient start color
 
     // Create camera
-    const aspect = 400 / 700;
+    const aspect = 400 / 630;
     threeCamera = new THREE.PerspectiveCamera(35, aspect, 0.1, 1000);
     threeCamera.position.set(0, 0, 6);
 
@@ -159,7 +159,7 @@ function initThreeJS() {
         preserveDrawingBuffer: true,
         powerPreference: 'high-performance'
     });
-    threeRenderer.setSize(400, 700);
+    threeRenderer.setSize(400, 630);
     // Use device pixel ratio of 1 for fastest interactive rendering
     threeRenderer.setPixelRatio(1);
     threeRenderer.outputEncoding = THREE.sRGBEncoding;
@@ -756,7 +756,7 @@ function renderThreeJSToCanvas(targetCanvas, width, height) {
 
             // Position: match 2D behavior where available space depends on (1 - scale)
             // This ensures same percentages look the same in 2D and 3D
-            // X uses smaller factor (1.1) since canvas is taller than wide (400x700 aspect)
+            // X uses smaller factor (1.1) since canvas is taller than wide (400x630 aspect)
             const availableSpaceY = (1 - screenshotScale) * 2;
             const availableSpaceX = (1 - screenshotScale) * 0.9;
             const xOffset = ((ss.x - 50) / 50) * availableSpaceX;
@@ -784,7 +784,7 @@ function renderThreeJSToCanvas(targetCanvas, width, height) {
     threeRenderer.setClearColor(0x000000, 0); // Fully transparent clear color
 
     // Temporarily resize renderer
-    const oldSize = { width: 400, height: 700 };
+    const oldSize = { width: 400, height: 630 };
     threeRenderer.setSize(dims.width, dims.height);
     threeCamera.aspect = dims.width / dims.height;
     threeCamera.updateProjectionMatrix();
@@ -921,7 +921,7 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
     threeRenderer.setClearColor(0x000000, 0); // Fully transparent clear color
 
     // Temporarily resize renderer
-    const oldSize = { width: 400, height: 700 };
+    const oldSize = { width: 400, height: 630 };
     threeRenderer.setSize(dims.width, dims.height);
     threeCamera.aspect = dims.width / dims.height;
     threeCamera.updateProjectionMatrix();
