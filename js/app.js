@@ -4368,6 +4368,13 @@ function setupEventListeners() {
         });
 
         window.addEventListener('resize', closeCanvasContextMenu);
+        
+        // Re-render canvas on resize so previews fit the new canvas-area height
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => updateCanvas(), 150);
+        });
 
         canvasContextMenu.querySelector('.canvas-menu-translations')?.addEventListener('click', () => {
             const index = getCanvasContextTargetIndex();
@@ -7148,10 +7155,11 @@ function updateCanvas() {
     canvas.width = dims.width;
     canvas.height = dims.height;
 
-    // Scale for preview
-    const maxPreviewWidth = 400;
-    const maxPreviewHeight = 630;
-    const scale = Math.min(maxPreviewWidth / dims.width, maxPreviewHeight / dims.height);
+    // Scale for preview - fit to available canvas area height
+    const canvasAreaEl = document.querySelector('.canvas-area');
+    const availableHeight = canvasAreaEl ? canvasAreaEl.clientHeight - 40 : 630; // 40px for padding
+    const availableWidth = 400;
+    const scale = Math.min(availableWidth / dims.width, availableHeight / dims.height);
     canvas.style.width = (dims.width * scale) + 'px';
     canvas.style.height = (dims.height * scale) + 'px';
 
@@ -7196,195 +7204,104 @@ function updateCanvas() {
     // Elements above text
     drawElements(ctx, dims, 'above-text');
 
-    // Update side previews
-    updateSidePreviews();
+    // Update all inline previews
+    updateInlinePreviews();
 }
 
-function updateSidePreviews() {
+function updateInlinePreviews() {
     const dims = getCanvasDimensions();
-    // Same scale as main preview
-    const maxPreviewWidth = 400;
-    const maxPreviewHeight = 630;
-    const previewScale = Math.min(maxPreviewWidth / dims.width, maxPreviewHeight / dims.height);
+    // Compute preview scale dynamically from available canvas area height
+    const canvasAreaEl = document.querySelector('.canvas-area');
+    const availableHeight = canvasAreaEl ? canvasAreaEl.clientHeight - 40 : 630;
+    const availableWidth = 400;
+    const previewScale = Math.min(availableWidth / dims.width, availableHeight / dims.height);
 
-    // Initialize Three.js if any screenshot uses 3D mode (needed for side previews)
+    // Initialize Three.js if any screenshot uses 3D mode
     const any3D = state.screenshots.some(s => s.screenshot?.use3D);
     if (any3D && typeof showThreeJS === 'function') {
         showThreeJS(true);
+    }
 
-        // Preload phone models for adjacent screenshots to prevent flicker
-        if (typeof loadCachedPhoneModel === 'function') {
-            const adjacentIndices = [state.selectedIndex - 1, state.selectedIndex + 1]
-                .filter(i => i >= 0 && i < state.screenshots.length);
-            adjacentIndices.forEach(i => {
-                const ss = state.screenshots[i]?.screenshot;
-                if (ss?.use3D && ss?.device3D) {
-                    loadCachedPhoneModel(ss.device3D);
-                }
-            });
+    // Hide all legacy side previews
+    sidePreviewLeft.classList.add('hidden');
+    sidePreviewRight.classList.add('hidden');
+    sidePreviewFarLeft.classList.add('hidden');
+    sidePreviewFarRight.classList.add('hidden');
+
+    // Remove old inline wrappers (keep the original canvas-wrapper for the selected)
+    const existingInline = previewStrip.querySelectorAll('.canvas-wrapper-inline');
+    existingInline.forEach(el => el.remove());
+
+    if (state.screenshots.length <= 1) {
+        // Single or no screenshot - just show the main canvas wrapper
+        canvasWrapper.style.display = '';
+        canvasWrapper.classList.toggle('selected', state.screenshots.length === 1);
+        return;
+    }
+
+    // Keep the original selected canvas-wrapper visible and interactive (drag/edit target)
+    canvasWrapper.style.display = '';
+    canvasWrapper.classList.add('selected');
+
+    // Render all non-selected screenshots as inline wrappers
+    state.screenshots.forEach((screenshot, index) => {
+        if (index === state.selectedIndex) return;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'canvas-wrapper canvas-wrapper-inline';
+        wrapper.dataset.index = index;
+
+        const inlineCanvas = document.createElement('canvas');
+        const inlineCtx = inlineCanvas.getContext('2d');
+
+        renderScreenshotToCanvas(index, inlineCanvas, inlineCtx, dims, previewScale);
+
+        wrapper.appendChild(inlineCanvas);
+
+        // Click to select
+        wrapper.addEventListener('click', (e) => {
+            // Don't interfere with context menu
+            if (e.button !== 0) return;
+            selectInlineScreenshot(index);
+        });
+
+        // Right-click context menu
+        wrapper.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            selectInlineScreenshot(index);
+            openCanvasContextMenu(e.clientX, e.clientY, index);
+        });
+
+        // Keep visual order around the selected (main) wrapper
+        if (index < state.selectedIndex) {
+            previewStrip.insertBefore(wrapper, canvasWrapper);
+        } else {
+            previewStrip.appendChild(wrapper);
         }
-    }
-
-    // Calculate main canvas display width and position side previews with 10px gap
-    const mainCanvasWidth = dims.width * previewScale;
-    const gap = 10;
-    const sideOffset = mainCanvasWidth / 2 + gap;
-    const farSideOffset = sideOffset + mainCanvasWidth + gap;
-
-    // Previous screenshot (left, index - 1)
-    const prevIndex = state.selectedIndex - 1;
-    if (prevIndex >= 0 && state.screenshots.length > 1) {
-        sidePreviewLeft.classList.remove('hidden');
-        sidePreviewLeft.style.right = `calc(50% + ${sideOffset}px)`;
-        // Skip render if already pre-rendered during slide transition
-        if (!skipSidePreviewRender) {
-            renderScreenshotToCanvas(prevIndex, canvasLeft, ctxLeft, dims, previewScale);
-        }
-        // Click to select previous with animation
-        sidePreviewLeft.onclick = () => {
-            if (isSliding) return;
-            slideToScreenshot(prevIndex, 'left');
-        };
-    } else {
-        sidePreviewLeft.classList.add('hidden');
-    }
-
-    // Far previous screenshot (far left, index - 2)
-    const farPrevIndex = state.selectedIndex - 2;
-    if (farPrevIndex >= 0 && state.screenshots.length > 2) {
-        sidePreviewFarLeft.classList.remove('hidden');
-        sidePreviewFarLeft.style.right = `calc(50% + ${farSideOffset}px)`;
-        renderScreenshotToCanvas(farPrevIndex, canvasFarLeft, ctxFarLeft, dims, previewScale);
-    } else {
-        sidePreviewFarLeft.classList.add('hidden');
-    }
-
-    // Next screenshot (right, index + 1)
-    const nextIndex = state.selectedIndex + 1;
-    if (nextIndex < state.screenshots.length && state.screenshots.length > 1) {
-        sidePreviewRight.classList.remove('hidden');
-        sidePreviewRight.style.left = `calc(50% + ${sideOffset}px)`;
-        // Skip render if already pre-rendered during slide transition
-        if (!skipSidePreviewRender) {
-            renderScreenshotToCanvas(nextIndex, canvasRight, ctxRight, dims, previewScale);
-        }
-        // Click to select next with animation
-        sidePreviewRight.onclick = () => {
-            if (isSliding) return;
-            slideToScreenshot(nextIndex, 'right');
-        };
-    } else {
-        sidePreviewRight.classList.add('hidden');
-    }
-
-    // Far next screenshot (far right, index + 2)
-    const farNextIndex = state.selectedIndex + 2;
-    if (farNextIndex < state.screenshots.length && state.screenshots.length > 2) {
-        sidePreviewFarRight.classList.remove('hidden');
-        sidePreviewFarRight.style.left = `calc(50% + ${farSideOffset}px)`;
-        renderScreenshotToCanvas(farNextIndex, canvasFarRight, ctxFarRight, dims, previewScale);
-    } else {
-        sidePreviewFarRight.classList.add('hidden');
-    }
+    });
 }
 
-function slideToScreenshot(newIndex, direction) {
-    isSliding = true;
-    previewStrip.classList.add('sliding');
-
-    const dims = getCanvasDimensions();
-    const maxPreviewWidth = 400;
-    const maxPreviewHeight = 630;
-    const previewScale = Math.min(maxPreviewWidth / dims.width, maxPreviewHeight / dims.height);
-    const slideDistance = dims.width * previewScale + 10; // canvas width + gap
-
-    const newPrevIndex = newIndex - 1;
-    const newNextIndex = newIndex + 1;
-
-    // Collect model loading promises for new active AND adjacent screenshots
-    const modelPromises = [];
-    [newIndex, newPrevIndex, newNextIndex].forEach(index => {
-        if (index >= 0 && index < state.screenshots.length) {
-            const ss = state.screenshots[index]?.screenshot;
-            if (ss?.use3D && ss?.device3D && typeof loadCachedPhoneModel === 'function') {
-                modelPromises.push(loadCachedPhoneModel(ss.device3D).catch(() => null));
-            }
-        }
-    });
-
-    // Start loading models immediately (in parallel with animation)
-    const modelsReady = modelPromises.length > 0 ? Promise.all(modelPromises) : Promise.resolve();
-
-    // Slide the strip in the opposite direction of the click
-    if (direction === 'right') {
-        previewStrip.style.transform = `translateX(-${slideDistance}px)`;
-    } else {
-        previewStrip.style.transform = `translateX(${slideDistance}px)`;
+function selectInlineScreenshot(index) {
+    if (index === state.selectedIndex) return;
+    
+    state.selectedIndex = index;
+    updateScreenshotList();
+    syncUIWithState();
+    updateGradientStopsUI();
+    
+    // Update 3D texture if needed
+    const ss = getScreenshotSettings();
+    if (ss.use3D && typeof updateScreenTexture === 'function') {
+        updateScreenTexture();
     }
+    
+    updateCanvas();
+}
 
-    // Wait for BOTH animation AND models to be ready
-    const animationDone = new Promise(resolve => setTimeout(resolve, 300));
-    Promise.all([animationDone, modelsReady]).then(() => {
-        // Pre-render new side previews to temporary canvases NOW (models are loaded)
-        const tempCanvases = [];
-
-        const prerenderToTemp = (index, targetCanvas) => {
-            if (index < 0 || index >= state.screenshots.length) return null;
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            renderScreenshotToCanvas(index, tempCanvas, tempCtx, dims, previewScale);
-            return { tempCanvas, targetCanvas };
-        };
-
-        const leftPrerender = prerenderToTemp(newPrevIndex, canvasLeft);
-        const rightPrerender = prerenderToTemp(newNextIndex, canvasRight);
-        if (leftPrerender) tempCanvases.push(leftPrerender);
-        if (rightPrerender) tempCanvases.push(rightPrerender);
-
-        // Disable transition temporarily for instant reset
-        previewStrip.style.transition = 'none';
-        previewStrip.style.transform = 'translateX(0)';
-
-        // Suppress updateCanvas calls from switchPhoneModel during sync
-        window.suppressSwitchModelUpdate = true;
-
-        // Update state
-        state.selectedIndex = newIndex;
-        updateScreenshotList();
-        syncUIWithState();
-        updateGradientStopsUI();
-
-        // Copy pre-rendered canvases to actual canvases BEFORE updateCanvas
-        // This prevents flicker by having content ready before the swap
-        tempCanvases.forEach(({ tempCanvas, targetCanvas }) => {
-            targetCanvas.width = tempCanvas.width;
-            targetCanvas.height = tempCanvas.height;
-            targetCanvas.style.width = tempCanvas.style.width;
-            targetCanvas.style.height = tempCanvas.style.height;
-            const targetCtx = targetCanvas.getContext('2d');
-            targetCtx.drawImage(tempCanvas, 0, 0);
-        });
-
-        // Skip side preview re-render since we already pre-rendered them
-        skipSidePreviewRender = true;
-
-        // Now do a full updateCanvas for main preview, far sides, etc.
-        // Side previews won't flicker because we already drew to them
-        updateCanvas();
-
-        // Reset flags
-        skipSidePreviewRender = false;
-        window.suppressSwitchModelUpdate = false;
-
-        // Re-enable transition after a frame
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                previewStrip.style.transition = '';
-                previewStrip.classList.remove('sliding');
-                isSliding = false;
-            });
-        });
-    });
+// Keep slideToScreenshot as a simple redirect for keyboard/swipe navigation
+function slideToScreenshot(newIndex, direction) {
+    if (newIndex < 0 || newIndex >= state.screenshots.length) return;
+    selectInlineScreenshot(newIndex);
 }
 
 function renderScreenshotToCanvas(index, targetCanvas, targetCtx, dims, previewScale) {

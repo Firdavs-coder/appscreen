@@ -1050,6 +1050,9 @@ let isAltDragging = false;
 let lastMouseX = 0;
 let lastMouseY = 0;
 let dragUpdatePending = false;
+let longPressTimer3D = null;
+const LONG_PRESS_DELAY_MS = 220;
+const LONG_PRESS_MOVE_CANCEL_PX = 4;
 
 function getUse3D() {
     if (typeof getScreenshotSettings === 'function') {
@@ -1063,6 +1066,13 @@ function setup3DCanvasInteraction() {
     const canvas = document.getElementById('preview-canvas');
     if (!canvas) return;
 
+    function clearLongPressTimer() {
+        if (longPressTimer3D) {
+            clearTimeout(longPressTimer3D);
+            longPressTimer3D = null;
+        }
+    }
+
     canvas.addEventListener('mousedown', (e) => {
         if (typeof state !== 'undefined' && getUse3D()) {
             isDragging3D = true;
@@ -1070,6 +1080,19 @@ function setup3DCanvasInteraction() {
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
             canvas.style.cursor = isAltDragging ? 'move' : 'grabbing';
+
+            // Support click-hold to move without requiring Alt.
+            // If user starts moving immediately, we keep rotate mode.
+            clearLongPressTimer();
+            if (!isAltDragging) {
+                longPressTimer3D = setTimeout(() => {
+                    if (isDragging3D) {
+                        isAltDragging = true;
+                        canvas.style.cursor = 'move';
+                    }
+                    longPressTimer3D = null;
+                }, LONG_PRESS_DELAY_MS);
+            }
         }
     });
 
@@ -1086,6 +1109,16 @@ function setup3DCanvasInteraction() {
 
         const deltaX = e.clientX - lastMouseX;
         const deltaY = e.clientY - lastMouseY;
+
+        // If user moved quickly after mousedown, treat as rotate intent
+        // and cancel pending long-press move switch.
+        if (longPressTimer3D && !isAltDragging) {
+            const movedEnough = Math.abs(deltaX) > LONG_PRESS_MOVE_CANCEL_PX || Math.abs(deltaY) > LONG_PRESS_MOVE_CANCEL_PX;
+            if (movedEnough) {
+                clearLongPressTimer();
+            }
+        }
+
         lastMouseX = e.clientX;
         lastMouseY = e.clientY;
 
@@ -1095,13 +1128,20 @@ function setup3DCanvasInteraction() {
 
         if (isAltDragging) {
             // Alt+drag: move position (x, y)
-            ss.x = Math.max(0, Math.min(100, ss.x + deltaX * 0.2));
-            ss.y = Math.max(0, Math.min(100, ss.y + deltaY * 0.2));
+            const xSlider = document.getElementById('screenshot-x');
+            const ySlider = document.getElementById('screenshot-y');
+            const xMin = xSlider ? parseFloat(xSlider.min) : -80;
+            const xMax = xSlider ? parseFloat(xSlider.max) : 180;
+            const yMin = ySlider ? parseFloat(ySlider.min) : -80;
+            const yMax = ySlider ? parseFloat(ySlider.max) : 180;
+
+            ss.x = Math.max(xMin, Math.min(xMax, ss.x + deltaX * 0.2));
+            ss.y = Math.max(yMin, Math.min(yMax, ss.y + deltaY * 0.2));
 
             // Update sliders
-            document.getElementById('screenshot-x').value = ss.x;
+            if (xSlider) xSlider.value = ss.x;
             document.getElementById('screenshot-x-value').textContent = Math.round(ss.x) + '%';
-            document.getElementById('screenshot-y').value = ss.y;
+            if (ySlider) ySlider.value = ss.y;
             document.getElementById('screenshot-y-value').textContent = Math.round(ss.y) + '%';
         } else {
             // Regular drag: rotate
@@ -1132,7 +1172,8 @@ function setup3DCanvasInteraction() {
         }
     });
 
-    canvas.addEventListener('mouseup', () => {
+    window.addEventListener('mouseup', () => {
+        clearLongPressTimer();
         if (isDragging3D) {
             isDragging3D = false;
             isAltDragging = false;
@@ -1141,6 +1182,7 @@ function setup3DCanvasInteraction() {
     });
 
     canvas.addEventListener('mouseleave', () => {
+        clearLongPressTimer();
         if (isDragging3D) {
             isDragging3D = false;
             isAltDragging = false;
