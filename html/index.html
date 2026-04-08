@@ -111,7 +111,6 @@
                                 <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                             </svg>
                         </button>
-                        <span class="project-buttons-divider"></span>
                         <div class="sidebar-header-buttons">
                             <div class="language-picker" id="language-picker">
                                 <button class="language-btn" id="language-btn" title="Language">
@@ -341,6 +340,19 @@
                             <path d="M12 15V3"/>
                         </svg>
                         Download
+                    </button>
+                    <div class="canvas-context-menu-divider"></div>
+                    <button class="screenshot-menu-item canvas-menu-move-left" type="button">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 18 9 12 15 6"/>
+                        </svg>
+                        Move Left
+                    </button>
+                    <button class="screenshot-menu-item canvas-menu-move-right" type="button">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                        Move Right
                     </button>
                     <div class="canvas-context-menu-divider"></div>
                     <button class="screenshot-menu-item canvas-menu-duplicate" type="button">
@@ -1641,8 +1653,8 @@
     <!-- Translate Modal -->
     <div class="modal-overlay" id="translate-modal">
         <div class="modal translate-modal">
-            <div class="modal-icon" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #764ba2;">
+            <div class="modal-icon" style="background: var(--accent-subtle);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent);">
                     <path d="M5 8l6 6M4 14l6-6 2-3M2 5h12M7 2v3M22 22l-5-10-5 10M14 18h6"/>
                 </svg>
             </div>
@@ -1670,7 +1682,7 @@
 
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-cancel" id="translate-modal-cancel">Cancel</button>
-                <button class="modal-btn modal-btn-confirm" id="translate-modal-apply" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">Apply Translations</button>
+                <button class="modal-btn modal-btn-confirm" id="translate-modal-apply" style="background: var(--accent);">Apply Translations</button>
             </div>
         </div>
     </div>

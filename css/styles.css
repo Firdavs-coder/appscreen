@@ -216,7 +216,7 @@ html.tauri-app .right-sidebar {
 
 .sidebar-content::-webkit-scrollbar-thumb {
     background: var(--border-color);
-    border-radius: 3px;
+    border-radius: 0px;
 }
 
 .sidebar-content::-webkit-scrollbar-thumb:hover {
@@ -513,6 +513,12 @@ html.tauri-app .right-sidebar {
     opacity: 0.6;
 }
 
+.screenshot-menu-item:disabled {
+    opacity: 0.45;
+    cursor: default;
+    pointer-events: none;
+}
+
 .canvas-context-menu {
     position: fixed;
     right: auto;
@@ -721,9 +727,15 @@ input[type="text"]:focus,
 input[type="number"]:focus,
 select:focus,
 textarea:focus {
-    outline: none;
+    outline: none !important;
     border-color: var(--ring);
     box-shadow: 0 0 0 2px var(--accent-subtle-strong);
+}
+
+textarea {
+    min-width: 100%;
+    min-height: 72px;
+    resize: vertical;
 }
 
 input[type="color"] {
@@ -1466,6 +1478,19 @@ input[type="range"]::-webkit-slider-thumb {
     color: white;
 }
 
+/* Keep readable text when confirm buttons use inline background: var(--accent) */
+.modal-btn-confirm[style*="var(--accent)"] {
+    color: var(--bg-secondary);
+}
+
+.modal-btn:disabled {
+    background: var(--bg-tertiary) !important;
+    color: var(--text-tertiary) !important;
+    border: 1px solid var(--border-color);
+    cursor: not-allowed;
+    opacity: 1;
+}
+
 .modal-btn-confirm:hover {
     background: hsl(0 84.2% 55%);
 }
@@ -1490,6 +1515,10 @@ input[type="range"]::-webkit-slider-thumb {
 /* Translate modal styles */
 .translate-modal {
     max-width: 500px;
+    max-height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     text-align: left;
 }
 
@@ -1504,9 +1533,11 @@ input[type="range"]::-webkit-slider-thumb {
 .translate-source {
     background: var(--bg-tertiary);
     padding: 16px;
-    border-radius: calc(var(--radius) + 2px);
+    /* border-radius: calc(var(--radius) + 2px); */
+    border-radius: 0px;
     margin-bottom: 16px;
     border: 1px solid var(--border-color);
+    flex-shrink: 0;
 }
 
 .translate-source select {
@@ -1526,9 +1557,15 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .translate-targets {
-    max-height: 300px;
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 120px;
     overflow-y: auto;
     margin-bottom: 20px;
+}
+
+.translate-modal .modal-buttons {
+    flex-shrink: 0;
 }
 
 .translate-target-item {
@@ -1615,11 +1652,11 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .ai-translate-status.error {
-    color: hsl(0 84.2% 60.2%);
+    color: var(--text-secondary);
 }
 
 .ai-translate-status.success {
-    color: hsl(142 76% 36%);
+    color: var(--text-secondary);
 }
 
 .translate-target-item.translating {
@@ -2297,15 +2334,21 @@ input[type="range"]::-webkit-slider-thumb {
 /* Scrollbar */
 ::-webkit-scrollbar {
     width: 6px;
+    border-radius: 0px;
 }
 
 ::-webkit-scrollbar-track {
     background: transparent;
+    border-radius: 0px;
 }
 
 ::-webkit-scrollbar-thumb {
     background: var(--border-color);
-    border-radius: 9999px;
+    border-radius: 0px;
+}
+
+::-webkit-scrollbar-corner {
+    border-radius: 0px;
 }
 
 ::-webkit-scrollbar-thumb:hover {

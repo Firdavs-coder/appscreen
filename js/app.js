@@ -4396,6 +4396,20 @@ function setupEventListeners() {
             await exportCurrent();
         });
 
+        canvasContextMenu.querySelector('.canvas-menu-move-left')?.addEventListener('click', () => {
+            const index = getCanvasContextTargetIndex();
+            closeCanvasContextMenu();
+            if (index === null || isSliding) return;
+            swapScreenshotsWithAdjacent(index, 'left');
+        });
+
+        canvasContextMenu.querySelector('.canvas-menu-move-right')?.addEventListener('click', () => {
+            const index = getCanvasContextTargetIndex();
+            closeCanvasContextMenu();
+            if (index === null || isSliding) return;
+            swapScreenshotsWithAdjacent(index, 'right');
+        });
+
         canvasContextMenu.querySelector('.canvas-menu-transfer')?.addEventListener('click', () => {
             const index = getCanvasContextTargetIndex();
             closeCanvasContextMenu();
@@ -6827,6 +6841,38 @@ function getCanvasContextTargetIndex() {
     return Math.min(Math.max(0, fallbackIndex), state.screenshots.length - 1);
 }
 
+function swapScreenshotsWithAdjacent(index, direction) {
+    if (state.screenshots.length < 2) return false;
+
+    const adjacentIndex = direction === 'left' ? index - 1 : index + 1;
+    if (adjacentIndex < 0 || adjacentIndex >= state.screenshots.length) return false;
+
+    [state.screenshots[index], state.screenshots[adjacentIndex]] = [
+        state.screenshots[adjacentIndex],
+        state.screenshots[index]
+    ];
+
+    if (state.selectedIndex === index) {
+        state.selectedIndex = adjacentIndex;
+    } else if (state.selectedIndex === adjacentIndex) {
+        state.selectedIndex = index;
+    }
+
+    if (Number.isInteger(state.transferTarget)) {
+        if (state.transferTarget === index) {
+            state.transferTarget = adjacentIndex;
+        } else if (state.transferTarget === adjacentIndex) {
+            state.transferTarget = index;
+        }
+    }
+
+    updateScreenshotList();
+    syncUIWithState();
+    updateGradientStopsUI();
+    updateCanvas();
+    return true;
+}
+
 function closeCanvasContextMenu() {
     if (!canvasContextMenu) return;
     canvasContextMenu.classList.remove('open');
@@ -6838,6 +6884,16 @@ function closeCanvasContextMenu() {
 
 function openCanvasContextMenu(x, y, screenshotIndex) {
     if (!canvasContextMenu) return;
+
+    const moveLeftItem = canvasContextMenu.querySelector('.canvas-menu-move-left');
+    const moveRightItem = canvasContextMenu.querySelector('.canvas-menu-move-right');
+    const hasAdjacent = state.screenshots.length > 1;
+    if (moveLeftItem) {
+        moveLeftItem.disabled = isSliding || !hasAdjacent || screenshotIndex <= 0;
+    }
+    if (moveRightItem) {
+        moveRightItem.disabled = isSliding || !hasAdjacent || screenshotIndex >= state.screenshots.length - 1;
+    }
 
     canvasContextMenu.dataset.index = String(screenshotIndex);
     canvasContextMenu.classList.add('open');
