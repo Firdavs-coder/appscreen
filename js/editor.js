@@ -104,6 +104,7 @@ let selectedElementId = null;
 let selectedPopoutId = null;
 let draggingElement = null;
 let hoveredCanvasTarget = null;
+let selectedCanvasTarget = null;
 
 // Global custom tooltip state
 let customTooltipEl = null;
@@ -250,6 +251,69 @@ function setHoveredCanvasTarget(target) {
     if (sameTarget) return;
     hoveredCanvasTarget = target;
     updateCanvas({ skipSave: true, skipInlinePreviews: true });
+}
+
+function areCanvasTargetsEqual(a, b) {
+    return !!a && !!b && a.type === b.type && a.id === b.id;
+}
+
+function normalizeCanvasTarget(target) {
+    if (!target || !target.type) return null;
+
+    if (target.type === 'element') {
+        if (!target.id) return null;
+        return getElements().some(el => el.id === target.id)
+            ? { type: 'element', id: target.id }
+            : null;
+    }
+
+    if (target.type === 'popout') {
+        if (!target.id) return null;
+        return getPopouts().some(p => p.id === target.id)
+            ? { type: 'popout', id: target.id }
+            : null;
+    }
+
+    if (target.type === 'screenshot') {
+        return state.screenshots.length ? { type: 'screenshot' } : null;
+    }
+
+    if (target.type === 'text') {
+        return getCanvasTextBounds() ? { type: 'text' } : null;
+    }
+
+    return null;
+}
+
+function getSelectedCanvasTarget() {
+    const explicitTarget = normalizeCanvasTarget(selectedCanvasTarget);
+    if (explicitTarget) return explicitTarget;
+
+    if (selectedPopoutId) {
+        const popoutTarget = normalizeCanvasTarget({ type: 'popout', id: selectedPopoutId });
+        if (popoutTarget) return popoutTarget;
+    }
+
+    if (selectedElementId) {
+        const elementTarget = normalizeCanvasTarget({ type: 'element', id: selectedElementId });
+        if (elementTarget) return elementTarget;
+    }
+
+    return null;
+}
+
+function setSelectedCanvasTarget(target, options = {}) {
+    const normalized = normalizeCanvasTarget(target);
+    const sameTarget =
+        (selectedCanvasTarget === null && normalized === null)
+        || areCanvasTargetsEqual(selectedCanvasTarget, normalized);
+
+    if (sameTarget) return;
+    selectedCanvasTarget = normalized;
+
+    if (!options.skipCanvasRefresh) {
+        updateCanvas({ skipSave: true, skipInlinePreviews: true });
+    }
 }
 
 function getScreenshotBounds(dims = getCanvasDimensions()) {
@@ -459,13 +523,33 @@ function getHoverHandleSize(dims = getCanvasDimensions()) {
     return Math.max(8, 10 * scale);
 }
 
-function getResizeHandlesForBounds(bounds) {
+function getCanvasOutlinePadding(dims = getCanvasDimensions()) {
+    const scale = dims.width / 400;
+    return Math.max(6, 8 * scale);
+}
+
+function getResizeHandlesForBounds(bounds, inset = 0) {
     return [
-        { id: 'top-left', x: bounds.x, y: bounds.y },
-        { id: 'top-right', x: bounds.x + bounds.width, y: bounds.y },
-        { id: 'bottom-left', x: bounds.x, y: bounds.y + bounds.height },
-        { id: 'bottom-right', x: bounds.x + bounds.width, y: bounds.y + bounds.height }
+        { id: 'top-left', x: bounds.x - inset, y: bounds.y - inset },
+        { id: 'top-right', x: bounds.x + bounds.width + inset, y: bounds.y - inset },
+        { id: 'bottom-left', x: bounds.x - inset, y: bounds.y + bounds.height + inset },
+        { id: 'bottom-right', x: bounds.x + bounds.width + inset, y: bounds.y + bounds.height + inset }
     ];
+}
+
+function getResizeAnchorForHandle(bounds, handle) {
+    switch (handle) {
+        case 'top-left':
+            return { x: bounds.x + bounds.width, y: bounds.y + bounds.height };
+        case 'top-right':
+            return { x: bounds.x, y: bounds.y + bounds.height };
+        case 'bottom-left':
+            return { x: bounds.x + bounds.width, y: bounds.y };
+        case 'bottom-right':
+            return { x: bounds.x, y: bounds.y };
+        default:
+            return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+    }
 }
 
 function hitTestResizeHandle(target, canvasX, canvasY, dims = getCanvasDimensions()) {
@@ -476,7 +560,7 @@ function hitTestResizeHandle(target, canvasX, canvasY, dims = getCanvasDimension
 
     const handleSize = getHoverHandleSize(dims);
     const hitRadius = handleSize * 1.25;
-    const handles = getResizeHandlesForBounds(bounds);
+    const handles = getResizeHandlesForBounds(bounds, getCanvasOutlinePadding(dims));
 
     for (const handle of handles) {
         if (Math.abs(canvasX - handle.x) <= hitRadius && Math.abs(canvasY - handle.y) <= hitRadius) {
@@ -487,53 +571,197 @@ function hitTestResizeHandle(target, canvasX, canvasY, dims = getCanvasDimension
 }
 
 function drawCanvasHoverOutline() {
-    if (!hoveredCanvasTarget || draggingElement) return;
+    if (draggingElement) return;
+
+    const selectedTarget = getSelectedCanvasTarget();
+    const hoverTarget = hoveredCanvasTarget;
+    if (!selectedTarget && !hoverTarget) return;
 
     const dims = getCanvasDimensions();
-    const bounds = getCanvasHoverBounds(hoveredCanvasTarget, dims);
-
-    if (!bounds) return;
-
     const scale = dims.width / 400;
-    const pad = Math.max(2, 3 * scale);
+    const pad = getCanvasOutlinePadding(dims);
 
-    ctx.save();
-    ctx.strokeStyle = 'rgba(10, 132, 255, 0.95)';
-    ctx.lineWidth = Math.max(1.5, 2 * scale);
-    ctx.setLineDash([8 * scale, 6 * scale]);
-    ctx.strokeRect(
-        bounds.x - pad,
-        bounds.y - pad,
-        bounds.width + pad * 2,
-        bounds.height + pad * 2
-    );
+    function drawOutline(target, options = {}) {
+        const bounds = getCanvasHoverBounds(target, dims);
+        if (!bounds) return;
 
-    if (isCanvasTargetResizable(hoveredCanvasTarget)) {
-        const handleSize = getHoverHandleSize(dims);
-        const handles = getResizeHandlesForBounds(bounds);
+        const drawHandles = !!options.drawHandles;
+        const stroke = options.stroke || 'rgba(10, 132, 255, 0.95)';
+        const lineWidth = options.lineWidth || Math.max(1.5, 2 * scale);
 
-        ctx.setLineDash([]);
-        ctx.fillStyle = '#ffffff';
-        ctx.strokeStyle = 'rgba(10, 132, 255, 1)';
-        ctx.lineWidth = Math.max(1, 1.5 * scale);
+        ctx.save();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = lineWidth;
+        ctx.setLineDash([]); // Hover and selected outlines are solid
+        ctx.strokeRect(
+            bounds.x - pad,
+            bounds.y - pad,
+            bounds.width + pad * 2,
+            bounds.height + pad * 2
+        );
 
-        handles.forEach((h) => {
-            ctx.fillRect(
-                h.x - handleSize / 2,
-                h.y - handleSize / 2,
-                handleSize,
-                handleSize
-            );
-            ctx.strokeRect(
-                h.x - handleSize / 2,
-                h.y - handleSize / 2,
-                handleSize,
-                handleSize
-            );
+        if (drawHandles && isCanvasTargetResizable(target)) {
+            const handleSize = getHoverHandleSize(dims);
+            const handles = getResizeHandlesForBounds(bounds, pad);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = 'rgba(10, 132, 255, 1)';
+            ctx.lineWidth = Math.max(1, 1.5 * scale);
+
+            handles.forEach((h) => {
+                ctx.fillRect(
+                    h.x - handleSize / 2,
+                    h.y - handleSize / 2,
+                    handleSize,
+                    handleSize
+                );
+                ctx.strokeRect(
+                    h.x - handleSize / 2,
+                    h.y - handleSize / 2,
+                    handleSize,
+                    handleSize
+                );
+            });
+        }
+
+        ctx.restore();
+    }
+
+    // Show hover outline even when something else is selected
+    if (hoverTarget && (!selectedTarget || !areCanvasTargetsEqual(selectedTarget, hoverTarget))) {
+        drawOutline(hoverTarget, {
+            drawHandles: !selectedTarget,
+            stroke: 'rgba(10, 132, 255, 0.7)',
+            lineWidth: Math.max(1.25, 1.6 * scale)
         });
     }
 
-    ctx.restore();
+    if (selectedTarget) {
+        drawOutline(selectedTarget, {
+            drawHandles: true,
+            stroke: 'rgba(10, 132, 255, 0.95)',
+            lineWidth: Math.max(1.5, 2 * scale)
+        });
+    } else if (hoverTarget) {
+        drawOutline(hoverTarget, {
+            drawHandles: true,
+            stroke: 'rgba(10, 132, 255, 0.95)',
+            lineWidth: Math.max(1.5, 2 * scale)
+        });
+    }
+}
+
+function hideCanvasSelectionToolbar() {
+    if (!canvasSelectionToolbar) return;
+    canvasSelectionToolbar.hidden = true;
+    canvasSelectionToolbar.setAttribute('aria-hidden', 'true');
+}
+
+function canMoveCanvasTarget(target, direction) {
+    if (!target) return false;
+
+    if (target.type === 'element') {
+        const elements = getElements();
+        const idx = elements.findIndex(el => el.id === target.id);
+        if (idx === -1) return false;
+        return direction === 'forward' ? idx < elements.length - 1 : idx > 0;
+    }
+
+    if (target.type === 'popout') {
+        const popouts = getPopouts();
+        const idx = popouts.findIndex(p => p.id === target.id);
+        if (idx === -1) return false;
+        return direction === 'forward' ? idx < popouts.length - 1 : idx > 0;
+    }
+
+    return false;
+}
+
+function canCopyCanvasTarget(target) {
+    return !!target && (target.type === 'element' || target.type === 'popout');
+}
+
+function canDeleteCanvasTarget(target) {
+    return !!target && (target.type === 'element' || target.type === 'popout');
+}
+
+function hasCanvasTargetActions(target) {
+    if (!target) return false;
+    return target.type === 'element' || target.type === 'popout';
+}
+
+function updateCanvasSelectionToolbar() {
+    if (!canvasSelectionToolbar) return;
+    if (draggingElement) {
+        hideCanvasSelectionToolbar();
+        return;
+    }
+
+    const target = getSelectedCanvasTarget();
+    if (!target || !hasCanvasTargetActions(target)) {
+        hideCanvasSelectionToolbar();
+        return;
+    }
+
+    const dims = getCanvasDimensions();
+    const bounds = getCanvasHoverBounds(target, dims);
+    if (!bounds) {
+        hideCanvasSelectionToolbar();
+        return;
+    }
+
+    canvasSelectionToolbar.hidden = false;
+    canvasSelectionToolbar.setAttribute('aria-hidden', 'false');
+
+    const moveBackBtn = canvasSelectionToolbar.querySelector('[data-action="move-back"]');
+    const moveForwardBtn = canvasSelectionToolbar.querySelector('[data-action="move-forward"]');
+    const copyBtn = canvasSelectionToolbar.querySelector('[data-action="copy"]');
+    const deleteBtn = canvasSelectionToolbar.querySelector('[data-action="delete"]');
+    if (moveBackBtn) moveBackBtn.disabled = !canMoveCanvasTarget(target, 'back');
+    if (moveForwardBtn) moveForwardBtn.disabled = !canMoveCanvasTarget(target, 'forward');
+    if (copyBtn) copyBtn.disabled = !canCopyCanvasTarget(target);
+    if (deleteBtn) deleteBtn.disabled = !canDeleteCanvasTarget(target);
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const wrapperRect = canvasWrapper.getBoundingClientRect();
+    const scaleX = canvasRect.width / Math.max(1, dims.width);
+    const scaleY = canvasRect.height / Math.max(1, dims.height);
+
+    const outlinePad = getCanvasOutlinePadding(dims);
+    const handleSize = isCanvasTargetResizable(target) ? getHoverHandleSize(dims) : 0;
+    const handleHalf = handleSize / 2;
+
+    const cornerRight = (bounds.x + bounds.width + outlinePad + handleHalf) * scaleX;
+    const cornerTop = (bounds.y - outlinePad - handleHalf) * scaleY;
+    const canvasOffsetX = canvasRect.left - wrapperRect.left;
+    const canvasOffsetY = canvasRect.top - wrapperRect.top;
+
+    const margin = 8;
+    const cornerClearance = Math.max(4, Math.round(handleSize * 0.35));
+    const toolbarWidth = canvasSelectionToolbar.offsetWidth;
+    const toolbarHeight = canvasSelectionToolbar.offsetHeight;
+
+    // Default: outside top-right corner of selected bounds
+    let left = canvasOffsetX + cornerRight + cornerClearance;
+    let top = canvasOffsetY + cornerTop - toolbarHeight - cornerClearance;
+
+    // If no space on the right, keep it at the top-right corner but shift inward.
+    if (left + toolbarWidth > wrapperRect.width - margin) {
+        left = canvasOffsetX + cornerRight - toolbarWidth;
+    }
+
+    // If no space above, place below the top-right corner
+    if (top < margin) {
+        top = canvasOffsetY + cornerTop + cornerClearance;
+    }
+
+    const maxLeft = wrapperRect.width - toolbarWidth - margin;
+    const maxTop = wrapperRect.height - toolbarHeight - margin;
+    left = Math.max(margin, Math.min(maxLeft, left));
+    top = Math.max(margin, Math.min(maxTop, top));
+
+    canvasSelectionToolbar.style.left = `${left}px`;
+    canvasSelectionToolbar.style.top = `${top}px`;
 }
 
 // ===== Popout accessors =====
@@ -583,6 +811,7 @@ function addPopout() {
     };
     screenshot.popouts.push(p);
     selectedPopoutId = p.id;
+    setSelectedCanvasTarget({ type: 'popout', id: p.id }, { skipCanvasRefresh: true });
     updateCanvas();
     updatePopoutsList();
     updatePopoutProperties();
@@ -593,6 +822,9 @@ function deletePopout(id) {
     if (!screenshot || !screenshot.popouts) return;
     screenshot.popouts = screenshot.popouts.filter(p => p.id !== id);
     if (selectedPopoutId === id) selectedPopoutId = null;
+    if (selectedCanvasTarget?.type === 'popout' && selectedCanvasTarget.id === id) {
+        selectedCanvasTarget = null;
+    }
     updateCanvas();
     updatePopoutsList();
     updatePopoutProperties();
@@ -610,6 +842,27 @@ function movePopout(id, direction) {
     }
     updateCanvas();
     updatePopoutsList();
+}
+
+function duplicatePopout(id) {
+    const screenshot = getCurrentScreenshot();
+    if (!screenshot || !screenshot.popouts) return;
+
+    const idx = screenshot.popouts.findIndex(p => p.id === id);
+    if (idx === -1) return;
+
+    const source = screenshot.popouts[idx];
+    const copy = JSON.parse(JSON.stringify(source));
+    copy.id = crypto.randomUUID();
+    copy.x = Math.max(0, Math.min(100, (source.x || 50) + 2));
+    copy.y = Math.max(0, Math.min(100, (source.y || 50) + 2));
+
+    screenshot.popouts.splice(idx + 1, 0, copy);
+    selectedPopoutId = copy.id;
+    setSelectedCanvasTarget({ type: 'popout', id: copy.id }, { skipCanvasRefresh: true });
+    updateCanvas();
+    updatePopoutsList();
+    updatePopoutProperties();
 }
 
 function addGraphicElement(img, src, name) {
@@ -639,6 +892,7 @@ function addGraphicElement(img, src, name) {
     };
     screenshot.elements.push(el);
     selectedElementId = el.id;
+    setSelectedCanvasTarget({ type: 'element', id: el.id }, { skipCanvasRefresh: true });
     updateCanvas();
     updateElementsList();
     updateElementProperties();
@@ -672,6 +926,7 @@ function addTextElement() {
     };
     screenshot.elements.push(el);
     selectedElementId = el.id;
+    setSelectedCanvasTarget({ type: 'element', id: el.id }, { skipCanvasRefresh: true });
     updateCanvas();
     updateElementsList();
     updateElementProperties();
@@ -747,6 +1002,7 @@ function addEmojiElement(emoji, name) {
     };
     screenshot.elements.push(el);
     selectedElementId = el.id;
+    setSelectedCanvasTarget({ type: 'element', id: el.id }, { skipCanvasRefresh: true });
     updateCanvas();
     updateElementsList();
     updateElementProperties();
@@ -783,6 +1039,7 @@ async function addIconElement(iconName) {
     };
     screenshot.elements.push(el);
     selectedElementId = el.id;
+    setSelectedCanvasTarget({ type: 'element', id: el.id }, { skipCanvasRefresh: true });
     updateElementsList();
     updateElementProperties();
     // Async: fetch icon SVG
@@ -800,6 +1057,9 @@ function deleteElement(id) {
     if (!screenshot || !screenshot.elements) return;
     screenshot.elements = screenshot.elements.filter(e => e.id !== id);
     if (selectedElementId === id) selectedElementId = null;
+    if (selectedCanvasTarget?.type === 'element' && selectedCanvasTarget.id === id) {
+        selectedCanvasTarget = null;
+    }
     updateCanvas();
     updateElementsList();
     updateElementProperties();
@@ -817,6 +1077,93 @@ function moveElementLayer(id, direction) {
     }
     updateCanvas();
     updateElementsList();
+}
+
+function duplicateElement(id) {
+    const screenshot = getCurrentScreenshot();
+    if (!screenshot || !screenshot.elements) return;
+
+    const idx = screenshot.elements.findIndex(e => e.id === id);
+    if (idx === -1) return;
+
+    const source = screenshot.elements[idx];
+    const copy = JSON.parse(JSON.stringify({ ...source, image: undefined }));
+    if ((source.type === 'graphic' || source.type === 'icon') && source.image) {
+        copy.image = source.image;
+    }
+
+    copy.id = crypto.randomUUID();
+    copy.x = Math.max(0, Math.min(100, (source.x || 50) + 2));
+    copy.y = Math.max(0, Math.min(100, (source.y || 50) + 2));
+
+    screenshot.elements.splice(idx + 1, 0, copy);
+    selectedElementId = copy.id;
+    setSelectedCanvasTarget({ type: 'element', id: copy.id }, { skipCanvasRefresh: true });
+    updateCanvas();
+    updateElementsList();
+    updateElementProperties();
+}
+
+function deleteScreenshotAt(index) {
+    if (index < 0 || index >= state.screenshots.length) return;
+
+    const keepScreenshotSelection = selectedCanvasTarget?.type === 'screenshot';
+
+    state.screenshots.splice(index, 1);
+    if (state.selectedIndex >= state.screenshots.length) {
+        state.selectedIndex = Math.max(0, state.screenshots.length - 1);
+    }
+
+    if (!state.screenshots.length) {
+        selectedCanvasTarget = null;
+    }
+
+    updateScreenshotList();
+    syncUIWithState();
+    if (keepScreenshotSelection && state.screenshots.length) {
+        setSelectedCanvasTarget({ type: 'screenshot' }, { skipCanvasRefresh: true });
+    }
+    updateGradientStopsUI();
+    updateCanvas();
+}
+
+function moveSelectedCanvasTarget(target, direction) {
+    if (!target) return;
+
+    if (target.type === 'element') {
+        moveElementLayer(target.id, direction === 'forward' ? 'up' : 'down');
+        return;
+    }
+
+    if (target.type === 'popout') {
+        movePopout(target.id, direction === 'forward' ? 'up' : 'down');
+    }
+}
+
+function duplicateSelectedCanvasTarget(target) {
+    if (!target) return;
+
+    if (target.type === 'element') {
+        duplicateElement(target.id);
+        return;
+    }
+
+    if (target.type === 'popout') {
+        duplicatePopout(target.id);
+    }
+}
+
+function deleteSelectedCanvasTarget(target) {
+    if (!target) return;
+
+    if (target.type === 'element') {
+        deleteElement(target.id);
+        return;
+    }
+
+    if (target.type === 'popout') {
+        deletePopout(target.id);
+    }
 }
 
 // Add reset buttons to all slider control rows
@@ -1801,6 +2148,7 @@ const fileInput = document.getElementById('file-input');
 const screenshotList = document.getElementById('screenshot-list');
 const noScreenshot = document.getElementById('no-screenshot');
 const canvasContextMenu = document.getElementById('canvas-context-menu');
+const canvasSelectionToolbar = document.getElementById('canvas-selection-toolbar');
 
 // Keep context menu at document root so fixed positioning is stable
 if (canvasContextMenu && canvasContextMenu.parentElement !== document.body) {
@@ -2808,6 +3156,7 @@ function syncUIWithState() {
 
     // Popouts
     selectedPopoutId = null;
+    selectedCanvasTarget = null;
     updatePopoutsList();
     updatePopoutProperties();
 }
@@ -2921,8 +3270,10 @@ function updateElementsList() {
         item.addEventListener('click', (e) => {
             if (e.target.closest('.element-item-btn')) return;
             selectedElementId = el.id;
+            setSelectedCanvasTarget({ type: 'element', id: el.id }, { skipCanvasRefresh: true });
             updateElementsList();
             updateElementProperties();
+            updateCanvas({ skipSave: true, skipInlinePreviews: true });
         });
 
         // Action buttons
@@ -3413,21 +3764,33 @@ function setupElementCanvasDrag() {
     function applyResizeMove(coords) {
         if (!draggingElement || draggingElement.mode !== 'resize') return;
 
-        const vecX = coords.x - draggingElement.centerX;
-        const vecY = coords.y - draggingElement.centerY;
-        const scaleX = Math.abs(vecX) / draggingElement.startHalfW;
-        const scaleY = Math.abs(vecY) / draggingElement.startHalfH;
+        const startBounds = draggingElement.startBounds;
+        if (!startBounds) return;
+
+        const anchor = getResizeAnchorForHandle(startBounds, draggingElement.handle);
+        const startDistanceX = Math.max(1, Math.abs(draggingElement.startX - anchor.x));
+        const startDistanceY = Math.max(1, Math.abs(draggingElement.startY - anchor.y));
+        const scaleX = Math.abs(coords.x - anchor.x) / startDistanceX;
+        const scaleY = Math.abs(coords.y - anchor.y) / startDistanceY;
         const factor = Math.max(0.1, Math.max(scaleX, scaleY));
+        const newHalfW = Math.max(1, draggingElement.startHalfW * factor);
+        const newHalfH = Math.max(1, draggingElement.startHalfH * factor);
+        const newCenterX = draggingElement.handle.includes('left') ? anchor.x - newHalfW : anchor.x + newHalfW;
+        const newCenterY = draggingElement.handle.includes('top') ? anchor.y - newHalfH : anchor.y + newHalfH;
 
         if (draggingElement.targetType === 'element') {
             const el = getElements().find(e => e.id === draggingElement.id);
             if (!el) return;
+            el.x = Math.max(0, Math.min(100, (newCenterX / draggingElement.dims.width) * 100));
+            el.y = Math.max(0, Math.min(100, (newCenterY / draggingElement.dims.height) * 100));
             if (el.type === 'text') {
                 // For text elements, corner resize should scale typography.
-                el.fontSize = Math.round(Math.max(12, Math.min(300, draggingElement.initialSize * factor)));
+                el.width = Math.max(2, Math.min(100, draggingElement.initialWidth * factor));
+                el.fontSize = Math.round(Math.max(12, Math.min(300, draggingElement.initialFontSize * factor)));
+                updateDragControlValue('element-width', el.width, '%');
                 updateDragControlValue('element-font-size', el.fontSize, '');
             } else {
-                el.width = Math.max(2, Math.min(100, draggingElement.initialSize * factor));
+                el.width = Math.max(2, Math.min(100, draggingElement.initialWidth * factor));
                 updateDragControlValue('element-width', el.width, '%');
             }
             updateCanvas({ skipSave: true, skipInlinePreviews: true });
@@ -3437,7 +3800,9 @@ function setupElementCanvasDrag() {
         if (draggingElement.targetType === 'popout') {
             const p = getPopouts().find(po => po.id === draggingElement.id);
             if (!p) return;
-            p.width = Math.max(5, Math.min(130, draggingElement.initialSize * factor));
+            p.x = Math.max(0, Math.min(100, (newCenterX / draggingElement.dims.width) * 100));
+            p.y = Math.max(0, Math.min(100, (newCenterY / draggingElement.dims.height) * 100));
+            p.width = Math.max(5, Math.min(130, draggingElement.initialWidth * factor));
             updateCanvas({ skipSave: true, skipInlinePreviews: true });
             updateDragControlValue('popout-width', p.width, '%');
             return;
@@ -3446,7 +3811,9 @@ function setupElementCanvasDrag() {
         if (draggingElement.targetType === 'screenshot') {
             const ss = getScreenshotSettings();
             if (!ss) return;
-            ss.scale = Math.max(30, Math.min(100, draggingElement.initialSize * factor));
+            ss.x = Math.max(0, Math.min(100, (newCenterX / draggingElement.dims.width) * 100));
+            ss.y = Math.max(0, Math.min(100, (newCenterY / draggingElement.dims.height) * 100));
+            ss.scale = Math.max(30, Math.min(100, draggingElement.initialWidth * factor));
 
             updateCanvas({ skipSave: true, skipInlinePreviews: true });
 
@@ -3585,19 +3952,22 @@ function setupElementCanvasDrag() {
     previewCanvas.addEventListener('mousedown', (e) => {
         const coords = getCanvasCoords(e);
         const hoverTarget = getHoverTargetAt(coords.x, coords.y);
+        const selectedTarget = getSelectedCanvasTarget();
         const dims = getCanvasDimensions();
-        const resizeHandle = hitTestResizeHandle(hoverTarget, coords.x, coords.y, dims);
+        const resizeTarget = hoverTarget || selectedTarget;
+        const resizeHandle = hitTestResizeHandle(resizeTarget, coords.x, coords.y, dims);
 
-        if (hoverTarget && resizeHandle) {
+        if (resizeTarget && resizeHandle) {
             e.preventDefault();
             e.stopPropagation();
 
-            const bounds = getCanvasHoverBounds(hoverTarget, dims);
+            const bounds = getCanvasHoverBounds(resizeTarget, dims);
             if (!bounds) return;
 
-            if (hoverTarget.type === 'popout') {
-                selectedPopoutId = hoverTarget.id;
+            if (resizeTarget.type === 'popout') {
+                selectedPopoutId = resizeTarget.id;
                 selectedElementId = null;
+                setSelectedCanvasTarget({ type: 'popout', id: resizeTarget.id }, { skipCanvasRefresh: true });
                 updatePopoutsList();
                 updatePopoutProperties();
                 updateElementsList();
@@ -3607,13 +3977,16 @@ function setupElementCanvasDrag() {
                 if (popoutsTab && !popoutsTab.classList.contains('active')) {
                     popoutsTab.click();
                 }
-            } else if (hoverTarget.type === 'element') {
-                selectedElementId = hoverTarget.id;
+            } else if (resizeTarget.type === 'element') {
+                selectedElementId = resizeTarget.id;
                 selectedPopoutId = null;
+                setSelectedCanvasTarget({ type: 'element', id: resizeTarget.id }, { skipCanvasRefresh: true });
                 updateElementsList();
                 updateElementProperties();
                 updatePopoutsList();
                 updatePopoutProperties();
+            } else {
+                setSelectedCanvasTarget({ type: resizeTarget.type }, { skipCanvasRefresh: true });
 
                 const elementsTab = document.querySelector('.tab[data-tab="elements"]');
                 if (elementsTab && !elementsTab.classList.contains('active')) {
@@ -3621,28 +3994,40 @@ function setupElementCanvasDrag() {
                 }
             }
 
-            const initialSize = hoverTarget.type === 'screenshot'
+            const targetElement = resizeTarget.type === 'element'
+                ? getElements().find(el => el.id === resizeTarget.id)
+                : null;
+
+            const initialSize = resizeTarget.type === 'screenshot'
                 ? getScreenshotSettings().scale
-                : hoverTarget.type === 'popout'
-                    ? (getPopouts().find(po => po.id === hoverTarget.id)?.width || 30)
+                : resizeTarget.type === 'popout'
+                    ? (getPopouts().find(po => po.id === resizeTarget.id)?.width || 30)
                     : (() => {
-                        const targetEl = getElements().find(el => el.id === hoverTarget.id);
-                        if (!targetEl) return 20;
-                        return targetEl.type === 'text'
-                            ? (targetEl.fontSize || 60)
-                            : (targetEl.width || 20);
+                        if (!targetElement) return 20;
+                        return targetElement.type === 'text'
+                            ? (targetElement.fontSize || 60)
+                            : (targetElement.width || 20);
                     })();
 
             draggingElement = {
                 mode: 'resize',
-                targetType: hoverTarget.type,
-                id: hoverTarget.id || null,
+                targetType: resizeTarget.type,
+                id: resizeTarget.id || null,
                 handle: resizeHandle,
+                startBounds: bounds,
+                startX: coords.x,
+                startY: coords.y,
                 centerX: bounds.x + bounds.width / 2,
                 centerY: bounds.y + bounds.height / 2,
                 startHalfW: Math.max(1, bounds.width / 2),
                 startHalfH: Math.max(1, bounds.height / 2),
-                initialSize
+                initialWidth: resizeTarget.type === 'element' && targetElement
+                    ? (targetElement.width || 20)
+                    : initialSize,
+                initialFontSize: resizeTarget.type === 'element' && targetElement?.type === 'text'
+                    ? (targetElement.fontSize || 60)
+                    : null,
+                dims
             };
 
             canvasWrapper.classList.add('element-dragging');
@@ -3668,6 +4053,7 @@ function setupElementCanvasDrag() {
             };
             selectedPopoutId = popoutHit.id;
             selectedElementId = null;
+            setSelectedCanvasTarget({ type: 'popout', id: popoutHit.id }, { skipCanvasRefresh: true });
             updatePopoutsList();
             updatePopoutProperties();
             updateElementsList();
@@ -3698,6 +4084,7 @@ function setupElementCanvasDrag() {
             };
             selectedElementId = hit.id;
             selectedPopoutId = null;
+            setSelectedCanvasTarget({ type: 'element', id: hit.id }, { skipCanvasRefresh: true });
             updateElementsList();
             updateElementProperties();
             updatePopoutsList();
@@ -3730,6 +4117,7 @@ function setupElementCanvasDrag() {
                 layoutLang,
                 dims
             };
+            setSelectedCanvasTarget({ type: 'text' }, { skipCanvasRefresh: true });
             canvasWrapper.classList.add('element-dragging');
             canvasWrapper.style.cursor = 'grabbing';
             setHoveredCanvasTarget({ type: 'text' });
@@ -3751,6 +4139,7 @@ function setupElementCanvasDrag() {
                     origY: ss.y,
                     dims
                 };
+                setSelectedCanvasTarget({ type: 'screenshot' }, { skipCanvasRefresh: true });
                 canvasWrapper.classList.add('element-dragging');
                 canvasWrapper.style.cursor = 'grabbing';
                 setHoveredCanvasTarget({ type: 'screenshot' });
@@ -3758,6 +4147,7 @@ function setupElementCanvasDrag() {
             return;
         }
 
+        setSelectedCanvasTarget(null, { skipCanvasRefresh: true });
         setHoveredCanvasTarget(null);
     });
 
@@ -3766,7 +4156,8 @@ function setupElementCanvasDrag() {
             // Hover detection
             const coords = getCanvasCoords(e);
             const hoverTarget = getHoverTargetAt(coords.x, coords.y);
-            const handle = hitTestResizeHandle(hoverTarget, coords.x, coords.y, getCanvasDimensions());
+            const selectedTarget = getSelectedCanvasTarget();
+            const handle = hitTestResizeHandle(hoverTarget || selectedTarget, coords.x, coords.y, getCanvasDimensions());
 
             setHoveredCanvasTarget(hoverTarget);
             canvasWrapper.classList.toggle('element-hover', !!hoverTarget);
@@ -3805,6 +4196,7 @@ function setupElementCanvasDrag() {
             };
             selectedPopoutId = popoutHit.id;
             selectedElementId = null;
+            setSelectedCanvasTarget({ type: 'popout', id: popoutHit.id }, { skipCanvasRefresh: true });
             updatePopoutsList();
             updatePopoutProperties();
             return;
@@ -3824,6 +4216,7 @@ function setupElementCanvasDrag() {
                 isPopout: false
             };
             selectedElementId = hit.id;
+            setSelectedCanvasTarget({ type: 'element', id: hit.id }, { skipCanvasRefresh: true });
             updateElementsList();
             updateElementProperties();
         }
@@ -3953,8 +4346,10 @@ function updatePopoutsList() {
         item.addEventListener('click', (e) => {
             if (e.target.closest('.element-item-btn')) return;
             selectedPopoutId = p.id;
+            setSelectedCanvasTarget({ type: 'popout', id: p.id }, { skipCanvasRefresh: true });
             updatePopoutsList();
             updatePopoutProperties();
+            updateCanvas({ skipSave: true, skipInlinePreviews: true });
         });
 
         item.querySelectorAll('.element-item-btn').forEach(btn => {
@@ -4964,6 +5359,30 @@ function setupEventListeners() {
         }
     });
 
+    if (canvasSelectionToolbar) {
+        canvasSelectionToolbar.addEventListener('click', (e) => {
+            const btn = e.target.closest('.canvas-selection-btn');
+            if (!btn) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const target = getSelectedCanvasTarget();
+            if (!target) return;
+
+            const action = btn.dataset.action;
+            if (action === 'move-back') {
+                moveSelectedCanvasTarget(target, 'back');
+            } else if (action === 'move-forward') {
+                moveSelectedCanvasTarget(target, 'forward');
+            } else if (action === 'copy') {
+                duplicateSelectedCanvasTarget(target);
+            } else if (action === 'delete') {
+                deleteSelectedCanvasTarget(target);
+            }
+        });
+    }
+
     // Canvas right-click context menu
     if (canvasContextMenu) {
         canvasWrapper.addEventListener('contextmenu', (e) => {
@@ -4980,6 +5399,8 @@ function setupEventListeners() {
                 updateGradientStopsUI();
                 updateCanvas();
             }
+
+            setSelectedCanvasTarget({ type: 'screenshot' }, { skipCanvasRefresh: true });
 
             openCanvasContextMenu(e.clientX, e.clientY, targetIndex);
         });
@@ -5077,14 +5498,7 @@ function setupEventListeners() {
             closeCanvasContextMenu();
             if (index === null) return;
 
-            state.screenshots.splice(index, 1);
-            if (state.selectedIndex >= state.screenshots.length) {
-                state.selectedIndex = Math.max(0, state.screenshots.length - 1);
-            }
-            updateScreenshotList();
-            syncUIWithState();
-            updateGradientStopsUI();
-            updateCanvas();
+            deleteScreenshotAt(index);
         });
     }
 
@@ -7364,6 +7778,7 @@ function updateScreenshotList() {
             updateScreenshotList();
             // Sync all UI with current screenshot's settings
             syncUIWithState();
+            setSelectedCanvasTarget({ type: 'screenshot' }, { skipCanvasRefresh: true });
             updateGradientStopsUI();
             // Update 3D texture if in 3D mode
             const ss = getScreenshotSettings();
@@ -7447,14 +7862,7 @@ function updateScreenshotList() {
             deleteBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 menu?.classList.remove('open');
-                state.screenshots.splice(index, 1);
-                if (state.selectedIndex >= state.screenshots.length) {
-                    state.selectedIndex = Math.max(0, state.screenshots.length - 1);
-                }
-                updateScreenshotList();
-                syncUIWithState();
-                updateGradientStopsUI();
-                updateCanvas();
+                deleteScreenshotAt(index);
             });
         }
 
@@ -7806,6 +8214,7 @@ function updateCanvas(options = {}) {
     // Empty state: don't render the default gradient screen
     if (state.screenshots.length === 0) {
         ctx.clearRect(0, 0, dims.width, dims.height);
+        hideCanvasSelectionToolbar();
         if (!skipInlinePreviews) {
             updateInlinePreviews();
         }
@@ -7855,6 +8264,7 @@ function updateCanvas(options = {}) {
 
     // Hover highlight for canvas items
     drawCanvasHoverOutline();
+    updateCanvasSelectionToolbar();
 
     // Update all inline previews
     if (!skipInlinePreviews) {
@@ -7941,6 +8351,7 @@ function selectInlineScreenshot(index) {
     state.selectedIndex = index;
     updateScreenshotList();
     syncUIWithState();
+    setSelectedCanvasTarget({ type: 'screenshot' }, { skipCanvasRefresh: true });
     updateGradientStopsUI();
     
     // Update 3D texture if needed

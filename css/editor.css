@@ -1144,6 +1144,71 @@ input[type="range"]::-webkit-slider-thumb {
     display: block;
 }
 
+.canvas-selection-toolbar {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    box-shadow: 0 10px 24px var(--shadow-color);
+    z-index: 20;
+    pointer-events: auto;
+}
+
+.canvas-selection-toolbar[hidden] {
+    display: none;
+}
+
+.canvas-selection-btn {
+    width: 26px;
+    height: 26px;
+    border: 1px solid transparent;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-radius: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.canvas-selection-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+.canvas-selection-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
+}
+
+.canvas-selection-btn svg {
+    opacity: 0.95;
+    pointer-events: none;
+}
+
+.canvas-selection-btn.danger:hover {
+    color: #ffffff;
+    background: var(--destructive);
+    border-color: var(--destructive);
+}
+
+.canvas-selection-btn.danger {
+    color: var(--destructive);
+    background: hsl(0 84.2% 60.2% / 0.12);
+    border-color: hsl(0 84.2% 60.2% / 0.28);
+}
+
+.canvas-selection-btn.danger:hover svg {
+    opacity: 1;
+}
+
 #preview-canvas {
     display: block;
 }

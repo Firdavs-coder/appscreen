@@ -316,6 +316,32 @@
                     <div class="no-screenshot" id="no-screenshot">
                         <p>No screenshots</p>
                     </div>
+                    <div class="canvas-selection-toolbar" id="canvas-selection-toolbar" aria-hidden="true" hidden>
+                        <button class="canvas-selection-btn" data-action="move-back" type="button" title="Move Back" aria-label="Move Back">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="15 18 9 12 15 6"/>
+                            </svg>
+                        </button>
+                        <button class="canvas-selection-btn" data-action="move-forward" type="button" title="Move Forward" aria-label="Move Forward">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="9 18 15 12 9 6"/>
+                            </svg>
+                        </button>
+                        <button class="canvas-selection-btn" data-action="copy" type="button" title="Copy" aria-label="Copy">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                            </svg>
+                        </button>
+                        <button class="canvas-selection-btn danger" data-action="delete" type="button" title="Delete" aria-label="Delete">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+                                <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/>
+                                <path d="M10 11v6M14 11v6"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="canvas-context-menu screenshot-menu" id="canvas-context-menu" role="menu" aria-hidden="true">
                     <button class="screenshot-menu-item canvas-menu-translations" type="button">
