@@ -5534,9 +5534,9 @@ function showAppAlert(message, type = 'info') {
         const iconColor = type === 'error' ? '#ff453a' :
             type === 'success' ? '#34c759' :
                 'var(--accent)';
-        const iconPath = type === 'error' ? '<path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>' :
-            type === 'success' ? '<path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>' :
-                '<path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>';
+        const iconPath = type === 'error' ? '<circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><circle cx="12" cy="16" r="0.9" fill="currentColor" stroke="none"/>' :
+            type === 'success' ? '<circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.2 2.2 4.8-4.8"/>' :
+                '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"/>';
 
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay visible';
