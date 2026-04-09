@@ -249,7 +249,7 @@ function setHoveredCanvasTarget(target) {
 
     if (sameTarget) return;
     hoveredCanvasTarget = target;
-    updateCanvas({ skipSave: true });
+    updateCanvas({ skipSave: true, skipInlinePreviews: true });
 }
 
 function getScreenshotBounds(dims = getCanvasDimensions()) {
@@ -3274,6 +3274,8 @@ function setupElementCanvasDrag() {
     // Snap guides state
     const SNAP_THRESHOLD = 1.5; // percentage units (of canvas width/height)
     let activeSnapGuides = { x: null, y: null }; // which guides are active
+    let dragMoveRafPending = false;
+    let pendingDragCoords = null;
 
     function getCanvasCoords(e) {
         const rect = previewCanvas.getBoundingClientRect();
@@ -3401,6 +3403,13 @@ function setupElementCanvasDrag() {
         return 'grab';
     }
 
+    function updateDragControlValue(id, value, suffix = '%') {
+        const input = document.getElementById(id);
+        const valueEl = document.getElementById(id + '-value');
+        if (input) input.value = value;
+        if (valueEl) valueEl.textContent = formatValue(value) + suffix;
+    }
+
     function applyResizeMove(coords) {
         if (!draggingElement || draggingElement.mode !== 'resize') return;
 
@@ -3413,9 +3422,15 @@ function setupElementCanvasDrag() {
         if (draggingElement.targetType === 'element') {
             const el = getElements().find(e => e.id === draggingElement.id);
             if (!el) return;
-            el.width = Math.max(2, Math.min(100, draggingElement.initialSize * factor));
-            updateCanvas();
-            updateElementProperties();
+            if (el.type === 'text') {
+                // For text elements, corner resize should scale typography.
+                el.fontSize = Math.round(Math.max(12, Math.min(300, draggingElement.initialSize * factor)));
+                updateDragControlValue('element-font-size', el.fontSize, '');
+            } else {
+                el.width = Math.max(2, Math.min(100, draggingElement.initialSize * factor));
+                updateDragControlValue('element-width', el.width, '%');
+            }
+            updateCanvas({ skipSave: true, skipInlinePreviews: true });
             return;
         }
 
@@ -3423,8 +3438,8 @@ function setupElementCanvasDrag() {
             const p = getPopouts().find(po => po.id === draggingElement.id);
             if (!p) return;
             p.width = Math.max(5, Math.min(130, draggingElement.initialSize * factor));
-            updateCanvas();
-            updatePopoutProperties();
+            updateCanvas({ skipSave: true, skipInlinePreviews: true });
+            updateDragControlValue('popout-width', p.width, '%');
             return;
         }
 
@@ -3433,7 +3448,7 @@ function setupElementCanvasDrag() {
             if (!ss) return;
             ss.scale = Math.max(30, Math.min(100, draggingElement.initialSize * factor));
 
-            updateCanvas();
+            updateCanvas({ skipSave: true, skipInlinePreviews: true });
 
             const scaleInput = document.getElementById('screenshot-scale');
             const scaleValue = document.getElementById('screenshot-scale-value');
@@ -3451,15 +3466,23 @@ function setupElementCanvasDrag() {
         if (draggingElement?.targetType === 'screenshot') {
             const dx = coords.x - draggingElement.startX;
             const dy = coords.y - draggingElement.startY;
-            const rawX = draggingElement.origX + (dx / draggingElement.dims.width) * 100;
-            const rawY = draggingElement.origY + (dy / draggingElement.dims.height) * 100;
+
+            // Screenshot position sliders map to a reduced movement range (moveX/moveY),
+            // not the full canvas dimensions. Use the same range here so drag follows cursor.
+            const ssBounds = getScreenshotBounds(draggingElement.dims);
+            if (!ssBounds) return;
+            const moveX = Math.max(draggingElement.dims.width - ssBounds.width, draggingElement.dims.width * 0.15);
+            const moveY = Math.max(draggingElement.dims.height - ssBounds.height, draggingElement.dims.height * 0.15);
+
+            const rawX = draggingElement.origX + (dx / Math.max(1, moveX)) * 100;
+            const rawY = draggingElement.origY + (dy / Math.max(1, moveY)) * 100;
 
             const ss = getScreenshotSettings();
             if (!ss) return;
 
             ss.x = rawX;
             ss.y = rawY;
-            updateCanvas();
+            updateCanvas({ skipSave: true, skipInlinePreviews: true });
 
             const xInput = document.getElementById('screenshot-x');
             const xValue = document.getElementById('screenshot-x-value');
@@ -3481,7 +3504,7 @@ function setupElementCanvasDrag() {
 
             const clampedOffset = Math.max(0, Math.min(100, nextOffset));
             setTextLanguageValue('offsetY', clampedOffset, draggingElement.layoutLang);
-            updateCanvas();
+            updateCanvas({ skipSave: true, skipInlinePreviews: true });
 
             const offsetInput = document.getElementById('text-offset-y');
             const offsetValue = document.getElementById('text-offset-y-value');
@@ -3506,29 +3529,56 @@ function setupElementCanvasDrag() {
             if (p) {
                 p.x = snapped.x;
                 p.y = snapped.y;
-                updateCanvas();
+                updateCanvas({ skipSave: true, skipInlinePreviews: true });
                 drawSnapGuides();
-                updatePopoutProperties();
+                updateDragControlValue('popout-x', p.x, '%');
+                updateDragControlValue('popout-y', p.y, '%');
             }
         } else {
             const el = getElements().find(e => e.id === draggingElement.id);
             if (el) {
                 el.x = snapped.x;
                 el.y = snapped.y;
-                updateCanvas();
+                updateCanvas({ skipSave: true, skipInlinePreviews: true });
                 drawSnapGuides();
-                updateElementProperties();
+                updateDragControlValue('element-x', el.x, '%');
+                updateDragControlValue('element-y', el.y, '%');
             }
         }
     }
 
+    function queueDragMove(coords) {
+        pendingDragCoords = coords;
+        if (dragMoveRafPending) return;
+
+        dragMoveRafPending = true;
+        requestAnimationFrame(() => {
+            dragMoveRafPending = false;
+            if (!draggingElement || !pendingDragCoords) return;
+
+            const nextCoords = pendingDragCoords;
+            pendingDragCoords = null;
+            applyDragMove(nextCoords);
+        });
+    }
+
     function clearDrag() {
         if (draggingElement) {
+            const endedDrag = draggingElement;
             draggingElement = null;
+            pendingDragCoords = null;
+            dragMoveRafPending = false;
             activeSnapGuides = { x: null, y: null };
             canvasWrapper.classList.remove('element-dragging');
             canvasWrapper.style.cursor = '';
             updateCanvas(); // redraw without guides
+
+            // Refresh full property panes once after drag completes.
+            if (endedDrag.targetType === 'popout' || endedDrag.isPopout) {
+                updatePopoutProperties();
+            } else if (endedDrag.targetType === 'element' || (!endedDrag.targetType && !endedDrag.isPopout && endedDrag.id)) {
+                updateElementProperties();
+            }
         }
     }
 
@@ -3575,7 +3625,13 @@ function setupElementCanvasDrag() {
                 ? getScreenshotSettings().scale
                 : hoverTarget.type === 'popout'
                     ? (getPopouts().find(po => po.id === hoverTarget.id)?.width || 30)
-                    : (getElements().find(el => el.id === hoverTarget.id)?.width || 20);
+                    : (() => {
+                        const targetEl = getElements().find(el => el.id === hoverTarget.id);
+                        if (!targetEl) return 20;
+                        return targetEl.type === 'text'
+                            ? (targetEl.fontSize || 60)
+                            : (targetEl.width || 20);
+                    })();
 
             draggingElement = {
                 mode: 'resize',
@@ -3725,7 +3781,7 @@ function setupElementCanvasDrag() {
             return;
         }
         e.preventDefault();
-        applyDragMove(getCanvasCoords(e));
+        queueDragMove(getCanvasCoords(e));
     });
 
     window.addEventListener('mouseup', () => clearDrag());
@@ -3776,7 +3832,7 @@ function setupElementCanvasDrag() {
     previewCanvas.addEventListener('touchmove', (e) => {
         if (!draggingElement) return;
         e.preventDefault();
-        applyDragMove(getCanvasCoords(e));
+        queueDragMove(getCanvasCoords(e));
     }, { passive: false });
 
     previewCanvas.addEventListener('touchend', () => clearDrag());
@@ -7729,7 +7785,10 @@ function getCanvasDimensions() {
 }
 
 function updateCanvas(options = {}) {
-    if (!options.skipSave) {
+    const skipSave = !!options.skipSave;
+    const skipInlinePreviews = !!options.skipInlinePreviews;
+
+    if (!skipSave) {
         saveState(); // Persist state on every update
     }
     const dims = getCanvasDimensions();
@@ -7747,7 +7806,9 @@ function updateCanvas(options = {}) {
     // Empty state: don't render the default gradient screen
     if (state.screenshots.length === 0) {
         ctx.clearRect(0, 0, dims.width, dims.height);
-        updateInlinePreviews();
+        if (!skipInlinePreviews) {
+            updateInlinePreviews();
+        }
         return;
     }
 
@@ -7796,7 +7857,9 @@ function updateCanvas(options = {}) {
     drawCanvasHoverOutline();
 
     // Update all inline previews
-    updateInlinePreviews();
+    if (!skipInlinePreviews) {
+        updateInlinePreviews();
+    }
 }
 
 function updateInlinePreviews() {

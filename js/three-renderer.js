@@ -1166,7 +1166,7 @@ function setup3DCanvasInteraction() {
             requestAnimationFrame(() => {
                 dragUpdatePending = false;
                 if (typeof updateCanvas === 'function') {
-                    updateCanvas();
+                    updateCanvas({ skipSave: true, skipInlinePreviews: true });
                 }
             });
         }
@@ -1178,6 +1178,9 @@ function setup3DCanvasInteraction() {
             isDragging3D = false;
             isAltDragging = false;
             canvas.style.cursor = getUse3D() ? 'grab' : '';
+            if (typeof updateCanvas === 'function') {
+                updateCanvas();
+            }
         }
     });
 
