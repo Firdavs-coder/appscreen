@@ -67,6 +67,10 @@
     .settings-btn:hover img {
         filter: invert(1);
     }
+
+    .toggle.active {
+        background: hsl(240 5% 38%);
+    }
 }
 
 /* Manual theme overrides */
@@ -132,6 +136,10 @@ html[data-theme="dark"] .settings-btn img {
 
 html[data-theme="dark"] .settings-btn:hover img {
     filter: invert(1);
+}
+
+html[data-theme="dark"] .toggle.active {
+    background: hsl(240 5% 38%);
 }
 
 html,
@@ -1085,6 +1093,12 @@ input[type="range"]::-webkit-slider-thumb {
     position: relative;
     min-width: min-content;
     height: 100%;
+}
+
+.preview-strip.empty-state {
+    width: 100%;
+    min-width: 100%;
+    justify-content: center;
 }
 
 .preview-strip.sliding {

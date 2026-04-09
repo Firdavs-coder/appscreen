@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SCREENCRAFT — App Screen Creator</title>
+<title>SCREENCRAFT — App Preview Generator</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Barlow:ital,wght@0,300;0,400;0,700;1,300&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/index.css">
+<link rel="icon" type="image/svg+xml" href="../img/logo-black.svg">
 </head>
 <body>
 
@@ -13,7 +14,10 @@
 
 <nav>
   <div class="nav-inner">
-    <div class="nav-logo">SCREENCRAFT</div>
+    <div class="nav-logo">
+      <img src="../img/logo-white.svg" alt="SCREENCRAFT" style="height: 32px; width: 32px;">
+      SCREENCRAFT
+    </div>
     <ul class="nav-links">
       <li><a href="#how">How it works</a></li>
       <li><a href="#features">Features</a></li>
@@ -25,7 +29,7 @@
 
 <!-- HERO -->
 <section class="hero">
-  <div class="hero-tag reveal">App Screen Creating Studio</div>
+  <div class="hero-tag reveal">App Preview Studio</div>
 
   <h1 class="hero-title reveal" style="transition-delay:0.05s;">
     YOUR APP.<br>
@@ -33,7 +37,7 @@
   </h1>
 
   <p class="hero-sub reveal" style="transition-delay:0.1s;">
-    Upload your screenshots, describe your vision. SCREENCRAFT generates polished App Store assets in seconds — powered by Claude AI.
+    Upload your screenshots, describe your vision. SCREENCRAFT generates polished App Store and Google Play previews in seconds — powered by Claude AI.
   </p>
 
   <!-- AI INPUT PANEL -->
@@ -51,7 +55,6 @@
         <button class="pill" onclick="setPrompt('Fitness app, dark premium style, bold typography')">Fitness App</button>
         <button class="pill" onclick="setPrompt('E-commerce app, clean minimal layout, product focus')">E-commerce</button>
         <button class="pill" onclick="setPrompt('Social app, vibrant colors, community feel')">Social App</button>
-        <button class="pill" onclick="setPrompt('Finance app, trustworthy tone, data-driven layout')">Finance</button>
       </div>
       <div class="panel-right">
         <label class="upload-label">
@@ -113,7 +116,7 @@
     <div class="step reveal" style="transition-delay:0.2s;">
       <div class="step-num">03</div>
       <div class="step-title">EXPORT</div>
-      <p class="step-desc">Get production-ready assets for App Store, Google Play, or any custom format — pixel-perfect, every time.</p>
+      <p class="step-desc">Get production-ready previews for App Store, Google Play, or any custom format — pixel-perfect, every time.</p>
     </div>
   </div>
   </div>
@@ -138,7 +141,7 @@
     <div class="feature-card reveal" style="transition-delay:0.2s;">
       <div class="feature-icon">→</div>
       <div class="feature-title">BATCH EXPORT</div>
-      <p class="feature-desc">Generate full screenshot sets for every store requirement in one click. App Store, Google Play, and custom sizes — all at once.</p>
+      <p class="feature-desc">Generate full preview sets for every store requirement in one click. App Store, Google Play, and custom sizes — all at once.</p>
     </div>
     <div class="feature-card reveal" style="transition-delay:0.3s;">
       <div class="feature-icon">#</div>
@@ -270,7 +273,7 @@
   <h2 class="section-title reveal">WHAT MAKERS<br>SAY.</h2>
   <div class="testimonials-grid">
     <div class="testimonial reveal">
-      <p class="testimonial-text">"Cut my App Store prep time from two days to under an hour. The AI actually understands what makes a good screenshot."</p>
+      <p class="testimonial-text">"Cut my App Store and Google Play prep time from two days to under an hour. The AI actually understands what makes a good preview."</p>
       <div class="testimonial-author">Sarah K.</div>
       <div class="testimonial-role">iOS Developer, SF</div>
     </div>
@@ -293,7 +296,7 @@
   <div class="cta-bg-text">LAUNCH</div>
   <div class="cta-inner">
     <h2 class="cta-title reveal">YOUR SCREENS.<br>YOUR STORY.</h2>
-    <p class="cta-sub reveal" style="transition-delay:0.1s;">Start creating stunning App Store assets today. No design skills required. No credit card needed.</p>
+    <p class="cta-sub reveal" style="transition-delay:0.1s;">Start creating stunning App Store and Google Play previews today. No design skills required. No credit card needed.</p>
     <div class="cta-btn-group reveal" style="transition-delay:0.2s;">
       <button class="btn-primary">Start For Free</button>
       <button class="btn-outline">View Examples</button>

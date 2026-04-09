@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-App Store Screenshot Generator - a browser-based tool for creating App Store marketing screenshots. Built with vanilla JavaScript, HTML5 Canvas, Three.js, and CSS. No build process required.
+App Preview Generator - a browser-based tool for creating App Store and Google Play marketing previews. Built with vanilla JavaScript, HTML5 Canvas, Three.js, and CSS. No build process required.
 
 ## Agent Instructions
 

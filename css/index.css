@@ -79,6 +79,9 @@
       font-family: var(--font-display);
       font-size: 1.35rem;
       letter-spacing: 0.12em;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
   }
 
   .nav-links {

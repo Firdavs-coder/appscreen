@@ -5840,9 +5840,9 @@ async function translateAllText() {
             }
         });
 
-        const prompt = `You are a professional translator for App Store screenshot marketing copy. Translate the following texts from ${languageNames[sourceLang]} to these languages: ${targetLangNames}.
+        const prompt = `You are a professional translator for app preview marketing copy. Translate the following text from ${languageNames[sourceLang]} to these languages: ${targetLangNames}.
 
-CONTEXT: These are marketing texts for app store screenshots. Each screenshot has a headline and/or subheadline that work together as a pair. The subheadline typically elaborates on or supports the headline. When translating, ensure:
+    CONTEXT: These are marketing texts for app previews. Each screen has a headline and/or subheadline that work together as a pair. The subheadline typically elaborates on or supports the headline. When translating, ensure:
 - Headlines and subheadlines on the same screenshot remain thematically consistent
 - Translations across all screenshots maintain a cohesive marketing voice
 - SIMILAR LENGTH to the originals - do NOT make translations longer, as they must fit on screen
@@ -6487,6 +6487,7 @@ function updateScreenshotList() {
     screenshotList.innerHTML = '';
     const isEmpty = state.screenshots.length === 0;
     noScreenshot.style.display = isEmpty ? 'block' : 'none';
+    if (previewStrip) previewStrip.classList.toggle('empty-state', isEmpty);
 
     // Disable right sidebar and export buttons when no screenshots
     const rightSidebar = document.querySelector('.sidebar-right');
@@ -7162,6 +7163,13 @@ function updateCanvas() {
     const scale = Math.min(availableWidth / dims.width, availableHeight / dims.height);
     canvas.style.width = (dims.width * scale) + 'px';
     canvas.style.height = (dims.height * scale) + 'px';
+
+    // Empty state: don't render the default gradient screen
+    if (state.screenshots.length === 0) {
+        ctx.clearRect(0, 0, dims.width, dims.height);
+        updateInlinePreviews();
+        return;
+    }
 
     // Draw background
     drawBackground();

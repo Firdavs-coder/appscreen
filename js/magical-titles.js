@@ -1,5 +1,5 @@
 // Magical Titles - AI-powered title generation using vision APIs
-// Analyzes app screenshots and generates marketing headlines + subheadlines
+// Analyzes app preview images and generates marketing headlines + subheadlines
 
 // Track if the tooltip has been shown this session
 let magicalTitlesTooltipShown = false;
@@ -315,7 +315,7 @@ async function generateMagicalTitles() {
     }
 
     // Build prompt
-    const prompt = `You are an expert App Store marketing copywriter. Analyze these ${images.length} app screenshots and create compelling marketing titles.
+    const prompt = `You are an expert App Store and Google Play marketing copywriter. Analyze these ${images.length} app screenshots and create compelling marketing titles.
 
 The screenshots are shown in order (1 through ${images.length}). Study what the app does and identify:
 1. The main purpose and value proposition

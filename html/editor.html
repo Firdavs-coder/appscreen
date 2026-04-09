@@ -4,17 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <base href="../">
-    <title>App Store Screenshot Generator</title>
-    <meta name="description" content="Free tool for creating beautiful App Store screenshots with customizable backgrounds, text overlays, and device frames.">
+    <title>App Preview Generator</title>
+    <meta name="description" content="Free tool for creating beautiful App Store and Google Play previews with customizable backgrounds, text overlays, and device frames.">
     <meta name="author" content="Stefan from yuzuhub.com">
 
     <!-- Open Graph / Social -->
-    <meta property="og:title" content="App Store Screenshot Generator">
-    <meta property="og:description" content="Free tool for creating beautiful App Store screenshots with customizable backgrounds, text overlays, and device frames.">
+    <meta property="og:title" content="App Preview Generator">
+    <meta property="og:description" content="Free tool for creating beautiful App Store and Google Play previews with customizable backgrounds, text overlays, and device frames.">
     <meta property="og:type" content="website">
 
-    <!-- Favicon (inline SVG) -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23667eea'/><rect x='20' y='30' width='60' height='45' rx='5' fill='white'/><circle cx='50' cy='20' r='5' fill='white'/></svg>">
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="img/logo-black.svg">
 
     <link rel="stylesheet" href="css/editor.css">
 
@@ -77,7 +77,10 @@
         <div class="sidebar">
             <div class="sidebar-content">
                 <div class="sidebar-header">
-                    <h2>SCREENCRAFT</h2>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <img src="img/logo-black.svg" alt="Logo" style="width: 28px; height: 28px; border-radius: 6px;">
+                        <h2 style="font-size: 1.1rem; letter-spacing: 0.05em;">SCREENCRAFT</h2>
+                    </div>
                 </div>
                 <div class="project-controls">
                     <div class="project-dropdown" id="project-dropdown">
@@ -312,12 +315,7 @@
                     <canvas id="preview-canvas"></canvas>
                     <div id="threejs-container" style="display: none;"></div>
                     <div class="no-screenshot" id="no-screenshot">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-                            <rect x="3" y="3" width="18" height="18" rx="2"/>
-                            <circle cx="8.5" cy="8.5" r="1.5"/>
-                            <path d="M21 15l-5-5L5 21"/>
-                        </svg>
-                        <p>Upload screenshots to get started</p>
+                        <p>No screenshots</p>
                     </div>
                 </div>
                 <div class="canvas-context-menu screenshot-menu" id="canvas-context-menu" role="menu" aria-hidden="true">
@@ -1838,7 +1836,7 @@
                     <line x1="12" y1="8" x2="12.01" y2="8"/>
                 </svg>
             </div>
-            <h3 class="modal-title">App Store Screenshot Generator</h3>
+            <h3 class="modal-title">App Preview Generator</h3>
             <p class="modal-message" style="margin-bottom: 12px; text-align: left;">
                 • <strong>Project Panel (left):</strong> Create/rename/delete projects, add/reorder screenshots, and switch language.<br>
                 • <strong>Canvas (center):</strong> Live preview with right-click menu (manage, replace, download, duplicate, remove).<br>

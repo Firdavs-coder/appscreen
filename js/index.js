@@ -48,7 +48,7 @@ async function generate() {
   try {
     const contentBlocks = [];
     uploadedBase64.forEach(f => contentBlocks.push({ type:'image', source:{ type:'base64', media_type:f.type, data:f.data } }));
-    contentBlocks.push({ type:'text', text: prompt || 'Analyze these screenshots and suggest a compelling App Store screenshot set.' });
+    contentBlocks.push({ type:'text', text: prompt || 'Analyze these screenshots and suggest a compelling App Store and Google Play preview set.' });
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -56,7 +56,7 @@ async function generate() {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
-        system: 'You are an expert App Store screenshot designer and ASO specialist. When given app screenshots and/or a prompt, provide concise, actionable design recommendations. Focus on layout, typography, colors, and key messaging copy. Keep under 200 words, formatted as a short concrete plan with clear bullet points.',
+        system: 'You are an expert app preview designer and ASO specialist. When given app screenshots and/or a prompt, provide concise, actionable design recommendations for App Store and Google Play previews. Focus on layout, typography, colors, and key messaging copy. Keep under 200 words, formatted as a short concrete plan with clear bullet points.',
         messages: [{ role:'user', content: contentBlocks }]
       })
     });
