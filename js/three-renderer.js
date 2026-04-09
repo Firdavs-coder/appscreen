@@ -50,7 +50,7 @@ const deviceConfigs = {
 };
 
 // Frame color presets per device (real device colors)
-// Using var so it's accessible from app.js
+// Using var so it's accessible from editor.js
 var frameColorPresets = {
     iphone: [
         { id: 'natural', label: 'Natural Titanium', swatch: '#9d927f',

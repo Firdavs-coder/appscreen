@@ -38,11 +38,11 @@ Open `http://localhost:8000` in browser. Opening `index.html` directly from file
 
 - `index.html` - UI structure with modals for settings, about, project management, translations, and language selection
 - `styles.css` - Dark theme styling, responsive layout with CSS Grid (3-column: left sidebar, canvas, right sidebar)
-- `app.js` - All application logic (~4400 lines)
+- `editor.js` - All application logic (~4400 lines)
 - `three-renderer.js` - Three.js 3D rendering for iPhone mockups (~1000 lines)
 - `language-utils.js` - Language detection, localized image management, and translation dialogs (~500 lines)
 
-**Key patterns in app.js:**
+**Key patterns in editor.js:**
 
 - `state` object at top holds all application state (screenshots, settings, text, background config)
 - `updateCanvas()` is the main render function - call after any state change
@@ -87,7 +87,7 @@ Open `http://localhost:8000` in browser. Opening `index.html` directly from file
 
 ## Key Functions
 
-**Project & Screenshots (app.js):**
+**Project & Screenshots (editor.js):**
 - `createProject()` / `deleteProject()` / `switchProject()` - async, must await and call `updateProjectSelector()` after
 - `handleFiles()` - processes uploaded images, detects language, shows duplicate dialog if needed
 - `createNewScreenshot()` - creates screenshot entry with localized image support

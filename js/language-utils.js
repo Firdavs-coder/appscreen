@@ -63,7 +63,7 @@ function findScreenshotByBaseFilename(filename) {
  * @returns {string} - Language code (e.g., 'de', 'fr', 'pt-br') or 'en' as fallback
  */
 function detectLanguageFromFilename(filename) {
-    // All supported language codes from languageFlags (defined in app.js)
+    // All supported language codes from languageFlags (defined in editor.js)
     const supportedLangs = Object.keys(languageFlags);
 
     // Normalize filename for matching
