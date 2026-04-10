@@ -293,15 +293,16 @@ function loadPhoneModel() {
             // Create a pivot group for rotation around screen center
             const config = deviceConfigs[currentDeviceModel] || deviceConfigs.iphone;
             const screenOffset = config.screenOffset;
+            const centeredPosition = phoneModel.position.clone();
 
             phonePivot = new THREE.Group();
 
             // Offset the phone model so the screen center is at the pivot's origin
-            phoneModel.position.set(
-                -screenOffset.x * baseModelScale,
-                -screenOffset.y * baseModelScale,
-                -screenOffset.z * baseModelScale
-            );
+            phoneModel.position.copy(centeredPosition).sub(new THREE.Vector3(
+                screenOffset.x * baseModelScale,
+                screenOffset.y * baseModelScale,
+                screenOffset.z * baseModelScale
+            ));
 
             phonePivot.add(phoneModel);
             threeScene.add(phonePivot);
@@ -410,14 +411,15 @@ function switchPhoneModel(deviceType) {
 
             // Create a pivot group for rotation around screen center
             const screenOffset = config.screenOffset;
+            const centeredPosition = phoneModel.position.clone();
             phonePivot = new THREE.Group();
 
             // Offset the phone model so the screen center is at the pivot's origin
-            phoneModel.position.set(
-                -screenOffset.x * baseModelScale,
-                -screenOffset.y * baseModelScale,
-                -screenOffset.z * baseModelScale
-            );
+            phoneModel.position.copy(centeredPosition).sub(new THREE.Vector3(
+                screenOffset.x * baseModelScale,
+                screenOffset.y * baseModelScale,
+                screenOffset.z * baseModelScale
+            ));
 
             phonePivot.add(phoneModel);
             threeScene.add(phonePivot);
@@ -498,12 +500,13 @@ function loadCachedPhoneModel(deviceType) {
                 // Create pivot for this model
                 const screenOffset = config.screenOffset;
                 const pivot = new THREE.Group();
+                const centeredPosition = model.position.clone();
 
-                model.position.set(
-                    -screenOffset.x * modelBaseScale,
-                    -screenOffset.y * modelBaseScale,
-                    -screenOffset.z * modelBaseScale
-                );
+                model.position.copy(centeredPosition).sub(new THREE.Vector3(
+                    screenOffset.x * modelBaseScale,
+                    screenOffset.y * modelBaseScale,
+                    screenOffset.z * modelBaseScale
+                ));
 
                 pivot.add(model);
 
