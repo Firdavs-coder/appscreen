@@ -105,6 +105,7 @@ let selectedPopoutId = null;
 let draggingElement = null;
 let hoveredCanvasTarget = null;
 let selectedCanvasTarget = null;
+let inlineCanvasTextEditor = null;
 
 // Global custom tooltip state
 let customTooltipEl = null;
@@ -311,8 +312,154 @@ function setSelectedCanvasTarget(target, options = {}) {
     if (sameTarget) return;
     selectedCanvasTarget = normalized;
 
+    if (inlineCanvasTextEditor && inlineCanvasTextEditor.style.display !== 'none') {
+        const editingId = inlineCanvasTextEditor.dataset.elementId;
+        const keepInlineEditing = normalized && normalized.type === 'element' && normalized.id === editingId;
+        if (!keepInlineEditing) {
+            closeInlineCanvasTextEditor({ keepSelection: true });
+        }
+    }
+
     if (!options.skipCanvasRefresh) {
         updateCanvas({ skipSave: true, skipInlinePreviews: true });
+    }
+}
+
+function ensureInlineCanvasTextEditor() {
+    if (inlineCanvasTextEditor) return inlineCanvasTextEditor;
+
+    const host = document.getElementById('canvas-wrapper');
+    if (!host) return null;
+
+    const editor = document.createElement('textarea');
+    editor.className = 'canvas-inline-text-editor';
+    editor.rows = 1;
+    editor.hidden = true;
+
+    const stop = (e) => {
+        e.stopPropagation();
+    };
+
+    editor.addEventListener('mousedown', stop);
+    editor.addEventListener('click', stop);
+    editor.addEventListener('dblclick', stop);
+
+    editor.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            editor.blur();
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            closeInlineCanvasTextEditor({ keepSelection: true });
+        }
+    });
+
+    editor.addEventListener('input', () => {
+        const id = editor.dataset.elementId;
+        if (!id) return;
+        const el = getElements().find(item => item.id === id);
+        if (!el || el.type !== 'text') return;
+
+        if (!el.texts) el.texts = {};
+        el.texts[state.currentLanguage] = editor.value;
+        el.text = editor.value;
+
+        editor.style.height = 'auto';
+        editor.style.height = `${Math.max(36, editor.scrollHeight)}px`;
+
+        updateElementsList();
+        updateElementProperties();
+        updateCanvas({ skipSave: true, skipInlinePreviews: true });
+    });
+
+    editor.addEventListener('blur', () => {
+        closeInlineCanvasTextEditor({ keepSelection: true });
+    });
+
+    host.appendChild(editor);
+    inlineCanvasTextEditor = editor;
+    return inlineCanvasTextEditor;
+}
+
+function openInlineCanvasTextEditor(elementId) {
+    const el = getElements().find(item => item.id === elementId);
+    if (!el || el.type !== 'text') return;
+
+    const editor = ensureInlineCanvasTextEditor();
+    if (!editor) return;
+
+    selectedElementId = elementId;
+    selectedPopoutId = null;
+    setSelectedCanvasTarget({ type: 'element', id: elementId }, { skipCanvasRefresh: true });
+
+    editor.dataset.elementId = elementId;
+    editor.value = getElementText(el);
+    editor.hidden = false;
+    editor.style.display = 'block';
+    editor.style.color = el.fontColor || '#ffffff';
+    editor.style.fontWeight = el.fontWeight || '600';
+    editor.style.fontStyle = el.italic ? 'italic' : 'normal';
+    editor.style.fontFamily = el.font || "-apple-system, BlinkMacSystemFont, 'SF Pro Display'";
+    editor.style.textAlign = 'center';
+
+    updateElementsList();
+    updateElementProperties();
+    positionInlineCanvasTextEditor();
+
+    editor.focus();
+    editor.select();
+}
+
+function positionInlineCanvasTextEditor() {
+    if (!inlineCanvasTextEditor || inlineCanvasTextEditor.hidden) return;
+
+    const elementId = inlineCanvasTextEditor.dataset.elementId;
+    if (!elementId) return;
+
+    const el = getElements().find(item => item.id === elementId);
+    if (!el || el.type !== 'text') {
+        closeInlineCanvasTextEditor({ keepSelection: true });
+        return;
+    }
+
+    const bounds = getElementBounds(el, getCanvasDimensions());
+    if (!bounds) return;
+
+    const dims = getCanvasDimensions();
+    const canvasRect = canvas.getBoundingClientRect();
+    const wrapperRect = canvasWrapper.getBoundingClientRect();
+    const scaleX = canvasRect.width / Math.max(1, dims.width);
+    const scaleY = canvasRect.height / Math.max(1, dims.height);
+    const canvasOffsetX = canvasRect.left - wrapperRect.left;
+    const canvasOffsetY = canvasRect.top - wrapperRect.top;
+
+    const margin = 8;
+    const width = Math.max(140, bounds.width * scaleX + 16);
+    const height = Math.max(40, bounds.height * scaleY + 12);
+
+    let left = canvasOffsetX + bounds.x * scaleX - 8;
+    let top = canvasOffsetY + bounds.y * scaleY - 6;
+
+    left = Math.max(margin, Math.min(wrapperRect.width - width - margin, left));
+    top = Math.max(margin, Math.min(wrapperRect.height - height - margin, top));
+
+    inlineCanvasTextEditor.style.left = `${left}px`;
+    inlineCanvasTextEditor.style.top = `${top}px`;
+    inlineCanvasTextEditor.style.width = `${width}px`;
+    inlineCanvasTextEditor.style.height = `${height}px`;
+    inlineCanvasTextEditor.style.fontSize = `${Math.max(12, (el.fontSize || 60) * scaleY * 0.85)}px`;
+}
+
+function closeInlineCanvasTextEditor(options = {}) {
+    if (!inlineCanvasTextEditor) return;
+
+    inlineCanvasTextEditor.hidden = true;
+    inlineCanvasTextEditor.style.display = 'none';
+    inlineCanvasTextEditor.dataset.elementId = '';
+
+    if (!options.keepSelection) {
+        selectedElementId = null;
     }
 }
 
@@ -353,7 +500,7 @@ function getElementBounds(el, dims = getCanvasDimensions()) {
 
     if (el.type === 'emoji' || el.type === 'icon') {
         elHeight = elWidth;
-    } else if (el.type === 'graphic' && el.image) {
+    } else if ((el.type === 'graphic' || el.type === 'device') && el.image) {
         elHeight = elWidth * (el.image.height / el.image.width);
     } else {
         elHeight = el.fontSize * 1.5;
@@ -678,16 +825,19 @@ function canMoveCanvasTarget(target, direction) {
 }
 
 function canCopyCanvasTarget(target) {
-    return !!target && (target.type === 'element' || target.type === 'popout');
+    if (!target) return false;
+    if (target.type === 'element' || target.type === 'popout') return true;
+    if (target.type === 'screenshot') return !!getScreenshotImage(getCurrentScreenshot());
+    return false;
 }
 
 function canDeleteCanvasTarget(target) {
-    return !!target && (target.type === 'element' || target.type === 'popout');
+    return !!target && (target.type === 'element' || target.type === 'popout' || target.type === 'screenshot');
 }
 
 function hasCanvasTargetActions(target) {
     if (!target) return false;
-    return target.type === 'element' || target.type === 'popout';
+    return target.type === 'element' || target.type === 'popout' || target.type === 'screenshot';
 }
 
 function updateCanvasSelectionToolbar() {
@@ -932,6 +1082,50 @@ function addTextElement() {
     updateElementProperties();
 }
 
+function addDeviceElementFromScreenshot(options = {}) {
+    const screenshot = getCurrentScreenshot();
+    if (!screenshot) return;
+
+    const img = getScreenshotImage(screenshot);
+    if (!img) {
+        showAppAlert('Add or select a screenshot image first to create a device copy.', 'info');
+        return;
+    }
+
+    if (!screenshot.elements) screenshot.elements = [];
+
+    const ss = getScreenshotSettings();
+    const width = Math.max(12, Math.min(80, (ss?.scale || 70) * 0.55));
+    const shift = options.offset ? 2 : 0;
+
+    const el = {
+        id: crypto.randomUUID(),
+        type: 'device',
+        x: Math.max(0, Math.min(100, 50 + shift)),
+        y: Math.max(0, Math.min(100, 50 + shift)),
+        width,
+        rotation: 0,
+        opacity: 100,
+        layer: 'above-screenshot',
+        image: img,
+        src: img.src,
+        name: 'Device',
+        deviceStyle: {
+            cornerRadius: ss?.cornerRadius || 24,
+            shadow: JSON.parse(JSON.stringify(ss?.shadow || { enabled: false })),
+            frame: JSON.parse(JSON.stringify(ss?.frame || { enabled: false }))
+        }
+    };
+
+    screenshot.elements.push(el);
+    selectedElementId = el.id;
+    selectedPopoutId = null;
+    setSelectedCanvasTarget({ type: 'element', id: el.id }, { skipCanvasRefresh: true });
+    updateElementsList();
+    updateElementProperties();
+    updateCanvas();
+}
+
 // ===== Lucide SVG loading & caching =====
 const lucideSVGCache = new Map(); // name -> raw SVG text
 
@@ -1088,7 +1282,7 @@ function duplicateElement(id) {
 
     const source = screenshot.elements[idx];
     const copy = JSON.parse(JSON.stringify({ ...source, image: undefined }));
-    if ((source.type === 'graphic' || source.type === 'icon') && source.image) {
+    if ((source.type === 'graphic' || source.type === 'icon' || source.type === 'device') && source.image) {
         copy.image = source.image;
     }
 
@@ -1150,6 +1344,11 @@ function duplicateSelectedCanvasTarget(target) {
 
     if (target.type === 'popout') {
         duplicatePopout(target.id);
+        return;
+    }
+
+    if (target.type === 'screenshot') {
+        addDeviceElementFromScreenshot({ offset: true });
     }
 }
 
@@ -1163,6 +1362,11 @@ function deleteSelectedCanvasTarget(target) {
 
     if (target.type === 'popout') {
         deletePopout(target.id);
+        return;
+    }
+
+    if (target.type === 'screenshot') {
+        deleteScreenshotAt(state.selectedIndex);
     }
 }
 
@@ -2413,7 +2617,7 @@ function reconstructElementImages(elements) {
     if (!elements || !Array.isArray(elements)) return [];
     return elements.map(el => {
         const restored = { ...el };
-        if (el.type === 'graphic' && el.src) {
+        if ((el.type === 'graphic' || el.type === 'device') && el.src) {
             const img = new Image();
             img.src = el.src;
             restored.image = img;
@@ -3229,7 +3433,7 @@ function updateElementsList() {
         };
 
         let thumbContent;
-        if (el.type === 'graphic' && el.image) {
+        if ((el.type === 'graphic' || el.type === 'device') && el.image) {
             thumbContent = `<img src="${el.image.src}" alt="${el.name}">`;
         } else if (el.type === 'emoji') {
             thumbContent = `<span class="emoji-thumb">${el.emoji}</span>`;
@@ -3244,7 +3448,7 @@ function updateElementsList() {
         item.innerHTML = `
             <div class="element-item-thumb">${thumbContent}</div>
             <div class="element-item-info">
-                <div class="element-item-name">${el.type === 'text' ? (getElementText(el) || 'Text') : el.type === 'emoji' ? `${el.emoji} ${el.name}` : el.name}</div>
+                <div class="element-item-name">${el.type === 'text' ? (getElementText(el) || 'Text') : el.type === 'emoji' ? `${el.emoji} ${el.name}` : (el.name || (el.type === 'device' ? 'Device' : 'Element'))}</div>
                 <div class="element-item-layer">${layerLabels[el.layer] || el.layer}</div>
             </div>
             <div class="element-item-actions">
@@ -3302,7 +3506,7 @@ function updateElementProperties() {
     }
 
     propsEl.style.display = '';
-    const titleMap = { text: 'Text Element', emoji: `${el.emoji} Emoji`, icon: `Icon: ${el.name}`, graphic: el.name || 'Graphic' };
+    const titleMap = { text: 'Text Element', emoji: `${el.emoji} Emoji`, icon: `Icon: ${el.name}`, graphic: el.name || 'Graphic', device: el.name || 'Device' };
     document.getElementById('element-properties-title').textContent = titleMap[el.type] || el.name || 'Element';
 
     document.getElementById('element-layer').value = el.layer;
@@ -3396,6 +3600,12 @@ function setupElementEventListeners() {
     const addTextBtn = document.getElementById('add-text-element-btn');
     if (addTextBtn) {
         addTextBtn.addEventListener('click', () => addTextElement());
+    }
+
+    // Add Device button
+    const addDeviceBtn = document.getElementById('add-device-element-btn');
+    if (addDeviceBtn) {
+        addDeviceBtn.addEventListener('click', () => addDeviceElementFromScreenshot({ offset: true }));
     }
 
     // Add Emoji button
@@ -3703,7 +3913,7 @@ function setupElementCanvasDrag() {
 
                 if (el.type === 'emoji' || el.type === 'icon') {
                     elHeight = elWidth; // square bounding box
-                } else if (el.type === 'graphic' && el.image) {
+                } else if ((el.type === 'graphic' || el.type === 'device') && el.image) {
                     elHeight = elWidth * (el.image.height / el.image.width);
                 } else {
                     elHeight = el.fontSize * 1.5;
@@ -4149,6 +4359,18 @@ function setupElementCanvasDrag() {
 
         setSelectedCanvasTarget(null, { skipCanvasRefresh: true });
         setHoveredCanvasTarget(null);
+    });
+
+    previewCanvas.addEventListener('dblclick', (e) => {
+        if (!state.screenshots.length) return;
+
+        const coords = getCanvasCoords(e);
+        const hit = hitTestElements(coords.x, coords.y);
+        if (!hit || hit.type !== 'text') return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        openInlineCanvasTextEditor(hit.id);
     });
 
     window.addEventListener('mousemove', (e) => {
@@ -7996,7 +8218,7 @@ function transferStyle(sourceIndex, targetIndex) {
     // Deep copy elements (reconstruct Image objects for graphics and icons)
     target.elements = (source.elements || []).map(el => {
         const copy = JSON.parse(JSON.stringify({ ...el, image: undefined }));
-        if (el.type === 'graphic' && el.image) {
+        if ((el.type === 'graphic' || el.type === 'device') && el.image) {
             copy.image = el.image;
         } else if (el.type === 'icon' && el.image) {
             copy.image = el.image;
@@ -8059,7 +8281,7 @@ function applyStyleToAll() {
         // Deep copy elements
         target.elements = (source.elements || []).map(el => {
             const copy = JSON.parse(JSON.stringify({ ...el, image: undefined }));
-            if (el.type === 'graphic' && el.image) {
+            if ((el.type === 'graphic' || el.type === 'device') && el.image) {
                 copy.image = el.image;
             }
             copy.id = crypto.randomUUID();
@@ -8214,6 +8436,7 @@ function updateCanvas(options = {}) {
     // Empty state: don't render the default gradient screen
     if (state.screenshots.length === 0) {
         ctx.clearRect(0, 0, dims.width, dims.height);
+        closeInlineCanvasTextEditor({ keepSelection: true });
         hideCanvasSelectionToolbar();
         if (!skipInlinePreviews) {
             updateInlinePreviews();
@@ -8265,6 +8488,7 @@ function updateCanvas(options = {}) {
     // Hover highlight for canvas items
     drawCanvasHoverOutline();
     updateCanvasSelectionToolbar();
+    positionInlineCanvasTextEditor();
 
     // Update all inline previews
     if (!skipInlinePreviews) {
@@ -8746,6 +8970,54 @@ function drawElements(context, dims, layer) {
     drawElementsToContext(context, dims, elements, layer);
 }
 
+function drawDeviceElementToContext(context, el, dims, elWidth) {
+    if (!el?.image) return;
+
+    const img = el.image;
+    const aspect = img.height / img.width;
+    const elHeight = elWidth * aspect;
+    const x = -elWidth / 2;
+    const y = -elHeight / 2;
+
+    const style = el.deviceStyle || {};
+    const shadow = style.shadow || { enabled: false };
+    const frame = style.frame || { enabled: false };
+    const cornerRadius = typeof style.cornerRadius === 'number' ? style.cornerRadius : 24;
+    const radius = cornerRadius * (elWidth / 400);
+
+    if (shadow.enabled) {
+        context.save();
+        context.shadowColor = hexToRgba(shadow.color || '#000000', (shadow.opacity ?? 30) / 100);
+        context.shadowBlur = shadow.blur || 0;
+        context.shadowOffsetX = shadow.x || 0;
+        context.shadowOffsetY = shadow.y || 0;
+        context.fillStyle = '#000';
+        context.beginPath();
+        context.roundRect(x, y, elWidth, elHeight, radius);
+        context.fill();
+        context.restore();
+    }
+
+    context.save();
+    context.beginPath();
+    context.roundRect(x, y, elWidth, elHeight, radius);
+    context.clip();
+    context.drawImage(img, x, y, elWidth, elHeight);
+    context.restore();
+
+    if (frame.enabled) {
+        drawDeviceFrameToContext(context, x, y, elWidth, elHeight, {
+            cornerRadius,
+            frame: {
+                enabled: true,
+                color: frame.color || '#1d1d1f',
+                width: frame.width ?? 12,
+                opacity: frame.opacity ?? 100
+            }
+        });
+    }
+}
+
 // Draw elements to any context (for side previews and export)
 function drawElementsToContext(context, dims, elements, layer) {
     const filtered = elements.filter(el => el.layer === layer);
@@ -8790,6 +9062,8 @@ function drawElementsToContext(context, dims, elements, layer) {
                 context.shadowOffsetX = 0;
                 context.shadowOffsetY = 0;
             }
+        } else if (el.type === 'device' && el.image) {
+            drawDeviceElementToContext(context, el, dims, elWidth);
         } else if (el.type === 'graphic' && el.image) {
             const aspect = el.image.height / el.image.width;
             const elHeight = elWidth * aspect;

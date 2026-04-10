@@ -1144,6 +1144,24 @@ input[type="range"]::-webkit-slider-thumb {
     display: block;
 }
 
+.canvas-inline-text-editor {
+    position: absolute;
+    z-index: 30;
+    border: 1px solid var(--accent);
+    border-radius: 0;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font: 600 18px/1.15 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    padding: 6px 8px;
+    resize: none;
+    outline: none;
+    box-shadow: 0 10px 24px var(--shadow-color);
+}
+
+.canvas-inline-text-editor::placeholder {
+    color: var(--text-secondary);
+}
+
 .canvas-selection-toolbar {
     position: absolute;
     display: inline-flex;
