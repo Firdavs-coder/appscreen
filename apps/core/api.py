@@ -1,0 +1,165 @@
+import json
+
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
+from django.contrib.auth.models import User
+from django.db.models import Sum, Count
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+
+from apps.core.models import Project, UsageEvent
+
+
+def _json_body(request):
+    if not request.body:
+        return {}
+    return json.loads(request.body.decode("utf-8"))
+
+
+def _require_auth(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"detail": "Authentication required"}, status=401)
+    return None
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def register(request):
+    data = _json_body(request)
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    full_name = (data.get("full_name") or "").strip()
+
+    if not email or not password:
+        return JsonResponse({"detail": "Email and password are required"}, status=400)
+    if User.objects.filter(username=email).exists():
+        return JsonResponse({"detail": "Email already registered"}, status=409)
+
+    user = User.objects.create_user(username=email, email=email, password=password)
+    if full_name:
+        parts = full_name.split(" ", 1)
+        user.first_name = parts[0]
+        if len(parts) > 1:
+            user.last_name = parts[1]
+        user.save(update_fields=["first_name", "last_name"])
+
+    auth_login(request, user)
+    return JsonResponse({
+        "id": user.id,
+        "email": user.email,
+        "full_name": f"{user.first_name} {user.last_name}".strip(),
+    }, status=201)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def login(request):
+    data = _json_body(request)
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    user = authenticate(request, username=email, password=password)
+    if user is None:
+        return JsonResponse({"detail": "Incorrect email or password"}, status=401)
+    auth_login(request, user)
+    return JsonResponse({
+        "id": user.id,
+        "email": user.email,
+        "full_name": f"{user.first_name} {user.last_name}".strip(),
+    })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def logout(request):
+    auth_logout(request)
+    return JsonResponse({}, status=204)
+
+
+@require_http_methods(["GET"])
+def me(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"detail": "Authentication required"}, status=401)
+    return JsonResponse({
+        "id": request.user.id,
+        "email": request.user.email,
+        "full_name": f"{request.user.first_name} {request.user.last_name}".strip() or None,
+    })
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def projects(request):
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+
+    if request.method == "GET":
+        items = [
+            {
+                "id": project.id,
+                "name": project.name,
+                "description": project.description,
+                "payload": project.payload,
+                "created_at": project.created_at.isoformat(),
+                "updated_at": project.updated_at.isoformat(),
+            }
+            for project in Project.objects.filter(user=request.user)
+        ]
+        return JsonResponse(items, safe=False)
+
+    data = _json_body(request)
+    project = Project.objects.create(
+        user=request.user,
+        name=data.get("name") or "Untitled Project",
+        description=data.get("description") or "",
+        payload=data.get("payload") or {},
+    )
+    return JsonResponse({
+        "id": project.id,
+        "name": project.name,
+        "description": project.description,
+        "payload": project.payload,
+        "created_at": project.created_at.isoformat(),
+        "updated_at": project.updated_at.isoformat(),
+    }, status=201)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def usage_events(request):
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+    data = _json_body(request)
+    event = UsageEvent.objects.create(
+        user=request.user,
+        event_type=data.get("event_type") or "event",
+        ai_tokens_spent=int(data.get("ai_tokens_spent") or 0),
+        screenshots_generated=int(data.get("screenshots_generated") or 0),
+        payload=data.get("payload") or {},
+    )
+    return JsonResponse({
+        "id": event.id,
+        "event_type": event.event_type,
+        "ai_tokens_spent": event.ai_tokens_spent,
+        "screenshots_generated": event.screenshots_generated,
+        "payload": event.payload,
+        "created_at": event.created_at.isoformat(),
+    }, status=201)
+
+
+@require_http_methods(["GET"])
+def usage_summary(request):
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+    summary = UsageEvent.objects.filter(user=request.user).aggregate(
+        total_ai_tokens_spent=Sum("ai_tokens_spent"),
+        total_screenshots_generated=Sum("screenshots_generated"),
+        event_count=Count("id"),
+    )
+    return JsonResponse({
+        "total_ai_tokens_spent": summary["total_ai_tokens_spent"] or 0,
+        "total_screenshots_generated": summary["total_screenshots_generated"] or 0,
+        "event_count": summary["event_count"] or 0,
+    })

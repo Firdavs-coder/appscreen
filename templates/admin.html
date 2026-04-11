@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — SCREENCRAFT</title>
+  <link rel="stylesheet" href="{% static 'css/index.css' %}">
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: linear-gradient(180deg, #f6f2ea 0%, #f0eadf 100%); color: #111; }
+    .shell { max-width: 1280px; margin: 0 auto; padding: 32px 24px 80px; }
+    .topbar { display:flex; justify-content:space-between; gap: 16px; align-items:center; flex-wrap:wrap; margin-bottom: 24px; }
+    .brand { font-size: 1.8rem; font-weight: 800; letter-spacing: .08em; }
+    .links { display:flex; gap: 10px; flex-wrap: wrap; }
+    .btn { border-radius: 14px; padding: 12px 16px; text-decoration:none; font-weight:700; display:inline-flex; align-items:center; justify-content:center; border: 0; cursor: pointer; }
+    .btn.dark { background:#111; color:#fff; }
+    .btn.light { background:#fff; color:#111; border:1px solid rgba(0,0,0,0.12); }
+    .grid { display:grid; grid-template-columns: 1.1fr .9fr; gap: 20px; }
+    .card { background: rgba(255,255,255,0.8); border:1px solid rgba(0,0,0,0.08); border-radius: 24px; padding: 24px; box-shadow: 0 16px 60px rgba(0,0,0,0.08); backdrop-filter: blur(10px); }
+    .kpi-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+    .kpi { background:#fff; border:1px solid rgba(0,0,0,0.08); border-radius:18px; padding:18px; }
+    .kpi-value { font-size: 2rem; font-weight: 800; }
+    .section-title { margin: 0 0 12px; font-size: 1.25rem; }
+    .muted { color:#666; }
+    .list { display:grid; gap: 10px; }
+    .item { background:#fff; border:1px solid rgba(0,0,0,0.08); border-radius: 16px; padding: 14px 16px; }
+    .item-head { display:flex; justify-content:space-between; gap: 12px; align-items:center; flex-wrap: wrap; }
+    .pill { display:inline-flex; padding: 6px 10px; border-radius:999px; background:#f4f4f4; font-size:.78rem; }
+    .form-row { display:grid; gap: 10px; margin-top: 14px; }
+    input, textarea { width:100%; box-sizing:border-box; padding: 12px 14px; border-radius: 14px; border:1px solid rgba(0,0,0,0.12); font-size: 1rem; background:#fff; }
+    textarea { min-height: 100px; resize: vertical; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px; }
+    .status { min-height: 24px; margin-top: 10px; }
+    .status.ok { color:#0a7b34; }
+    .status.err { color:#b00020; }
+    .split { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .table { width:100%; border-collapse: collapse; }
+    .table th, .table td { text-align:left; padding: 10px 8px; border-bottom:1px solid rgba(0,0,0,0.08); vertical-align: top; }
+    .small { font-size: .9rem; }
+    .auth-banner { margin: 0 0 20px; padding: 14px 16px; border-radius: 16px; background:#fff7d6; border:1px solid rgba(0,0,0,0.08); }
+    @media (max-width: 1000px) { .grid, .split, .kpi-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <div>
+        <div class="brand">SCREENCRAFT</div>
+        <div class="muted">Admin dashboard</div>
+      </div>
+      <div class="links">
+        <a class="btn light" href="/">Home</a>
+        <a class="btn light" href="/register/">Register</a>
+        <a class="btn light" href="/editor/">Editor</a>
+        <button class="btn dark" id="logoutBtn" type="button">Logout</button>
+      </div>
+    </div>
+
+    <div id="authBanner" class="auth-banner">Loading session…</div>
+
+    <div class="grid">
+      <section class="card">
+        <h2 class="section-title">Overview</h2>
+        <div class="kpi-grid">
+          <div class="kpi"><div class="muted">AI tokens</div><div class="kpi-value" id="kpiTokens">0</div></div>
+          <div class="kpi"><div class="muted">Screenshots</div><div class="kpi-value" id="kpiShots">0</div></div>
+          <div class="kpi"><div class="muted">Events</div><div class="kpi-value" id="kpiEvents">0</div></div>
+        </div>
+
+        <div style="margin-top: 22px;">
+          <h3 class="section-title">Projects</h3>
+          <div id="projectsList" class="list"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Quick actions</h2>
+        <div class="split">
+          <a class="btn dark" href="/editor/">Open editor</a>
+          <a class="btn light" href="/register/">Create account</a>
+        </div>
+
+        <div style="margin-top: 22px;">
+          <h3 class="section-title">Track usage event</h3>
+          <div class="form-row">
+            <input id="eventType" placeholder="event type (e.g. screenshot_export)" value="screenshot_export">
+            <input id="eventTokens" type="number" min="0" value="0" placeholder="AI tokens spent">
+            <input id="eventShots" type="number" min="0" value="0" placeholder="Screenshots generated">
+            <textarea id="eventPayload" placeholder='Extra JSON payload, optional'>{"source":"admin"}</textarea>
+          </div>
+          <div class="actions">
+            <button class="btn dark" id="saveEventBtn" type="button">Save event</button>
+            <button class="btn light" id="refreshBtn" type="button">Refresh dashboard</button>
+          </div>
+          <div id="eventStatus" class="status muted"></div>
+        </div>
+      </section>
+    </div>
+
+    <div style="margin-top: 20px;" class="grid">
+      <section class="card">
+        <h2 class="section-title">Recent projects data</h2>
+        <table class="table small">
+          <thead>
+            <tr><th>Name</th><th>Updated</th><th>Payload</th></tr>
+          </thead>
+          <tbody id="projectsTable"></tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Account & API</h2>
+        <div class="list">
+          <div class="item"><div class="item-head"><strong>Current user</strong><span class="pill" id="userEmail">not loaded</span></div><div class="muted small" id="userName">—</div></div>
+          <div class="item"><div class="item-head"><strong>Session</strong><span class="pill">Django session</span></div><div class="muted small">Authenticated with Django cookies and server-side session storage.</div></div>
+          <div class="item"><div class="item-head"><strong>Endpoints</strong><span class="pill">FastAPI</span></div><div class="muted small">Register, login, logout, projects, and usage summaries are all server-side.</div></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const authBanner = document.getElementById('authBanner');
+    const kpiTokens = document.getElementById('kpiTokens');
+    const kpiShots = document.getElementById('kpiShots');
+    const kpiEvents = document.getElementById('kpiEvents');
+    const projectsList = document.getElementById('projectsList');
+    const projectsTable = document.getElementById('projectsTable');
+    const userEmail = document.getElementById('userEmail');
+    const userName = document.getElementById('userName');
+    const eventStatus = document.getElementById('eventStatus');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const saveEventBtn = document.getElementById('saveEventBtn');
+
+    function headers(extra = {}) {
+      return {
+        'Content-Type': 'application/json',
+        ...extra
+      };
+    }
+
+    function prettyDate(value) {
+      try { return new Date(value).toLocaleString(); } catch { return value || '—'; }
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, { ...options, headers: headers(options.headers || {}) });
+      const text = await response.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+      if (!response.ok) throw new Error((data && data.detail) || 'Request failed');
+      return data;
+    }
+
+    async function loadDashboard() {
+      try {
+        const me = await api('/api/auth/me/');
+        authBanner.textContent = 'Authenticated and ready.';
+        authBanner.style.background = '#e9ffe9';
+        userEmail.textContent = me.email;
+        userName.textContent = me.full_name || 'No display name set';
+      } catch {
+        authBanner.innerHTML = 'No session found. <a href="/register/">Register or login first.</a>';
+        authBanner.style.background = '#fff1f1';
+        return;
+      }
+
+      authBanner.textContent = 'Session active. Loading dashboard...';
+      try {
+        const [summary, projects] = await Promise.all([
+          api('/api/usage/summary/'),
+          api('/api/projects/')
+        ]);
+
+        kpiTokens.textContent = summary.total_ai_tokens_spent;
+        kpiShots.textContent = summary.total_screenshots_generated;
+        kpiEvents.textContent = summary.event_count;
+
+        projectsList.innerHTML = '';
+        projectsTable.innerHTML = '';
+        if (!projects.length) {
+          projectsList.innerHTML = '<div class="item"><strong>No projects yet.</strong><div class="muted small">Use the editor to create one and it will appear here.</div></div>';
+          projectsTable.innerHTML = '<tr><td colspan="3" class="muted">No projects saved yet.</td></tr>';
+        } else {
+          for (const project of projects) {
+            const item = document.createElement('div');
+            item.className = 'item';
+            item.innerHTML = `<div class="item-head"><strong>${project.name}</strong><span class="pill">${prettyDate(project.updated_at)}</span></div><div class="muted small">${project.description || 'No description'}</div>`;
+            projectsList.appendChild(item);
+
+            const row = document.createElement('tr');
+            row.innerHTML = `<td>${project.name}</td><td>${prettyDate(project.updated_at)}</td><td><pre style="white-space:pre-wrap; margin:0;">${JSON.stringify(project.payload, null, 2)}</pre></td>`;
+            projectsTable.appendChild(row);
+          }
+        }
+      } catch (error) {
+        authBanner.textContent = error.message;
+        authBanner.style.background = '#fff1f1';
+      }
+    }
+
+    saveEventBtn.addEventListener('click', async () => {
+      eventStatus.textContent = 'Saving...';
+      eventStatus.className = 'status muted';
+      try {
+        const payloadText = document.getElementById('eventPayload').value.trim();
+        const payload = payloadText ? JSON.parse(payloadText) : {};
+        await api('/api/usage/events/', {
+          method: 'POST',
+          body: JSON.stringify({
+            event_type: document.getElementById('eventType').value.trim(),
+            ai_tokens_spent: Number(document.getElementById('eventTokens').value || 0),
+            screenshots_generated: Number(document.getElementById('eventShots').value || 0),
+            payload
+          })
+        });
+        eventStatus.textContent = 'Usage event saved.';
+        eventStatus.className = 'status ok';
+        await loadDashboard();
+      } catch (error) {
+        eventStatus.textContent = error.message;
+        eventStatus.className = 'status err';
+      }
+    });
+
+    refreshBtn.addEventListener('click', loadDashboard);
+
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await api('/api/auth/logout/', { method: 'POST' });
+      } catch {}
+      window.location.href = '/register/';
+    });
+
+    loadDashboard();
+  </script>
+</body>
+</html>

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCREENCRAFT — App Preview Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Barlow:ital,wght@0,300;0,400;0,700;1,300&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'css/index.css' %}">
+<link rel="icon" type="image/svg+xml" href="{% static 'img/logo-black.svg' %}">
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo">
+      SCREENCRAFT
+    </div>
+    <ul class="nav-links">
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+    </ul>
+    <a class="nav-cta" href="/register/">Start Free</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-tag reveal">App Preview Studio</div>
+
+  <h1 class="hero-title reveal" style="transition-delay:0.05s;">
+    APP PREVIEWS.<br>
+    <span class="outline">ONE CLICK.</span>
+  </h1>
+
+  <p class="hero-sub reveal" style="transition-delay:0.1s;">
+    Upload your screenshots, describe your vision. SCREENCRAFT generates polished App Store and Google Play previews in seconds — powered by Claude AI.
+  </p>
+
+  <!-- AI INPUT PANEL -->
+  <div class="ai-panel reveal" style="transition-delay:0.15s;" id="aiPanel">
+    <div class="ai-textarea-wrap">
+      <textarea
+        class="ai-prompt-input"
+        id="promptInput"
+        placeholder="Describe your screenshot set… e.g. Dark premium fitness app with bold stats and gradient backgrounds"
+      ></textarea>
+    </div>
+    <div id="preview-grid"></div>
+    <div class="ai-panel-footer">
+      <div class="pill-tags">
+        <button class="pill" onclick="setPrompt('Fitness app, dark premium style, bold typography')">Fitness App</button>
+        <button class="pill" onclick="setPrompt('E-commerce app, clean minimal layout, product focus')">E-commerce</button>
+        <button class="pill" onclick="setPrompt('Social app, vibrant colors, community feel')">Social App</button>
+      </div>
+      <div class="panel-right">
+        <label class="upload-label">
+          + Screenshots
+          <input type="file" id="fileInput" accept="image/*" multiple>
+        </label>
+        <button class="ai-send-btn" id="sendBtn">Generate</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai-output-wrap">
+    <div class="ai-output" id="aiOutput"></div>
+  </div>
+
+  <div class="hero-stats reveal" style="transition-delay:0.25s;">
+    <div><div class="stat-num">12K+</div><div class="stat-label">Screens Created</div></div>
+    <div><div class="stat-num">340+</div><div class="stat-label">App Developers</div></div>
+    <div><div class="stat-num">4.9★</div><div class="stat-label">Avg Rating</div></div>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <div class="marquee-item"><span class="dot"></span>iOS App Store</div>
+    <div class="marquee-item"><span class="dot"></span>Google Play</div>
+    <div class="marquee-item"><span class="dot"></span>Product Hunt</div>
+    <div class="marquee-item"><span class="dot"></span>ASO Optimization</div>
+    <div class="marquee-item"><span class="dot"></span>Device Mockups</div>
+    <div class="marquee-item"><span class="dot"></span>AI Generation</div>
+    <div class="marquee-item"><span class="dot"></span>Batch Export</div>
+    <div class="marquee-item"><span class="dot"></span>iOS App Store</div>
+    <div class="marquee-item"><span class="dot"></span>Google Play</div>
+    <div class="marquee-item"><span class="dot"></span>Product Hunt</div>
+    <div class="marquee-item"><span class="dot"></span>ASO Optimization</div>
+    <div class="marquee-item"><span class="dot"></span>Device Mockups</div>
+    <div class="marquee-item"><span class="dot"></span>AI Generation</div>
+    <div class="marquee-item"><span class="dot"></span>Batch Export</div>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how">
+  <div class="container">
+  <div class="section-tag">Process</div>
+  <h2 class="section-title reveal">THREE STEPS.<br><span style="-webkit-text-stroke:1.5px var(--black); color:transparent;">ZERO FRICTION.</span></h2>
+  <div class="steps-grid">
+    <div class="step reveal">
+      <div class="step-num">01</div>
+      <div class="step-title">UPLOAD</div>
+      <p class="step-desc">Drop your raw app screenshots into the studio. Any resolution, any format. We handle the rest.</p>
+    </div>
+    <div class="step reveal" style="transition-delay:0.1s;">
+      <div class="step-num">02</div>
+      <div class="step-title">DESCRIBE</div>
+      <p class="step-desc">Type your vision in plain language — or pick a preset. Claude understands design context and platform conventions.</p>
+    </div>
+    <div class="step reveal" style="transition-delay:0.2s;">
+      <div class="step-num">03</div>
+      <div class="step-title">EXPORT</div>
+      <p class="step-desc">Get production-ready previews for App Store, Google Play, or any custom format — pixel-perfect, every time.</p>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="container">
+  <div class="section-tag">Capabilities</div>
+  <h2 class="section-title reveal">BUILT FOR<br>MAKERS.</h2>
+  <div class="features-grid">
+    <div class="feature-card reveal">
+      <div class="feature-icon">AI</div>
+      <div class="feature-title">CLAUDE-POWERED</div>
+      <p class="feature-desc">Describe your ideal screenshot set in natural language. Our Claude integration understands design context, brand tone, and platform conventions.</p>
+    </div>
+    <div class="feature-card reveal" style="transition-delay:0.1s;">
+      <div class="feature-icon">2D</div>
+      <div class="feature-title">DEVICE FRAMES</div>
+      <p class="feature-desc">2D and 3D device mockups for every iPhone, Android, and tablet. Position, scale, and rotate with pixel-level precision.</p>
+    </div>
+    <div class="feature-card reveal" style="transition-delay:0.2s;">
+      <div class="feature-icon">→</div>
+      <div class="feature-title">BATCH EXPORT</div>
+      <p class="feature-desc">Generate full preview sets for every store requirement in one click. App Store, Google Play, and custom sizes — all at once.</p>
+    </div>
+    <div class="feature-card reveal" style="transition-delay:0.3s;">
+      <div class="feature-icon">#</div>
+      <div class="feature-title">BRAND SYSTEM</div>
+      <p class="feature-desc">Save your palette, typography, and layout rules. Every new project inherits your brand DNA automatically.</p>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- SHOWCASE -->
+<section class="showcase">
+  <div class="showcase-inner">
+  <div class="reveal-left">
+    <div class="section-tag">Preview</div>
+    <h2 class="section-title" style="margin-bottom:1.4rem;">REAL OUTPUT.<br>NOT TEMPLATES.</h2>
+    <p style="color:var(--gray); line-height:1.8; font-size:0.94rem; max-width:400px; margin-bottom:2rem;">Every layout is generated fresh from your screenshots and prompt. No cookie-cutter templates — the AI composes each scene uniquely.</p>
+    <button style="background:var(--black); color:var(--white); border:1px solid var(--black); padding:0.9rem 2rem; font-family:var(--font-mono); font-size:0.7rem; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;" onclick="document.getElementById('promptInput').focus()">Try It Now →</button>
+  </div>
+  <div class="showcase-phones reveal-right">
+    <div class="phone-frame">
+      <div class="phone-inner">
+        <div class="phone-statusbar"><span>9:41</span><span>◼◼◼</span></div>
+        <div class="phone-content">
+          <div class="phone-header-bar"><span>GYM</span></div>
+          <div class="phone-card"><div class="phone-card-dot"></div><div class="phone-card-line"></div></div>
+          <div class="phone-card"><div class="phone-card-dot"></div><div class="phone-card-line" style="width:60%"></div></div>
+          <div class="phone-card"><div class="phone-card-dot"></div><div class="phone-card-line" style="width:78%"></div></div>
+        </div>
+        <div class="phone-nav">
+          <div class="phone-nav-dot active"></div>
+          <div class="phone-nav-dot"></div>
+          <div class="phone-nav-dot"></div>
+          <div class="phone-nav-dot"></div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-frame" style="background:#fff;">
+      <div class="phone-inner">
+        <div class="phone-statusbar" style="background:rgba(0,0,0,0.04);"><span>9:41</span><span>◼◼◼</span></div>
+        <div class="phone-content">
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:12px; color:#111; margin-bottom:6px; letter-spacing:0.06em;">EXERCISES</div>
+          <div class="phone-card" style="background:#0d0d0d; border:none;"><div class="phone-card-dot" style="background:#444"></div><div class="phone-card-line" style="background:#333"></div></div>
+          <div class="phone-card"><div class="phone-card-dot"></div><div class="phone-card-line"></div></div>
+          <div class="phone-card"><div class="phone-card-dot"></div><div class="phone-card-line" style="width:55%"></div></div>
+          <div class="phone-card"><div class="phone-card-dot"></div><div class="phone-card-line" style="width:80%"></div></div>
+        </div>
+        <div class="phone-nav" style="background:#fafafa; border-color:rgba(0,0,0,0.08);">
+          <div class="phone-nav-dot"></div>
+          <div class="phone-nav-dot active"></div>
+          <div class="phone-nav-dot"></div>
+          <div class="phone-nav-dot"></div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-frame" style="background:#0d0d0d;">
+      <div class="phone-inner">
+        <div class="phone-statusbar" style="background:rgba(255,255,255,0.04);"><span style="color:#666">9:41</span><span style="color:#666">◼◼◼</span></div>
+        <div class="phone-content">
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:10px; color:#aaa; margin-bottom:5px; letter-spacing:0.1em;">PLAN</div>
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:15px; color:#fff; margin-bottom:6px;">30 DAYS</div>
+          <div class="phone-card" style="background:#1a1a1a; border:none;"><div class="phone-card-dot" style="background:#555"></div><div class="phone-card-line" style="background:#333"></div><div style="width:20px; height:10px; background:#fff; flex-shrink:0;"></div></div>
+          <div class="phone-card" style="background:#111; border:1px solid #222;"><div class="phone-card-dot" style="background:#333"></div><div class="phone-card-line" style="background:#222"></div></div>
+          <div class="phone-card" style="background:#111; border:1px solid #222;"><div class="phone-card-dot" style="background:#333"></div><div class="phone-card-line" style="background:#222; width:65%"></div></div>
+        </div>
+        <div class="phone-nav" style="background:#0a0a0a; border-color:#222;">
+          <div class="phone-nav-dot" style="background:#333"></div>
+          <div class="phone-nav-dot" style="background:#333"></div>
+          <div class="phone-nav-dot active" style="background:#fff"></div>
+          <div class="phone-nav-dot" style="background:#333"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+</section>
+<section class="section" id="pricing">
+ <div class="container">
+   <div class="section-tag">Plans</div>
+  <h2 class="section-title reveal">SIMPLE<br>PRICING.</h2>
+  <div class="pricing-grid">
+    <div class="price-card reveal">
+      <div class="price-plan">Starter</div>
+      <div class="price-amount">$0</div>
+      <div class="price-period">/ month</div>
+      <div class="price-desc">Everything you need to get started and ship your first app.</div>
+      <ul class="price-features">
+        <li class="price-feature">10 screens / month</li>
+        <li class="price-feature">2D device frames</li>
+        <li class="price-feature">App Store export</li>
+        <li class="price-feature">5 AI generations</li>
+      </ul>
+      <button class="price-btn">Get Started</button>
+    </div>
+    <div class="price-card featured reveal" style="transition-delay:0.1s;">
+      <div class="price-plan">Pro</div>
+      <div class="price-amount">$19</div>
+      <div class="price-period">/ month</div>
+      <div class="price-desc">For indie developers who ship multiple apps and need speed.</div>
+      <ul class="price-features">
+        <li class="price-feature">Unlimited screens</li>
+        <li class="price-feature">2D + 3D frames</li>
+        <li class="price-feature">All stores + custom</li>
+        <li class="price-feature">Unlimited AI</li>
+      </ul>
+      <button class="price-btn">Start Pro</button>
+    </div>
+    <div class="price-card reveal" style="transition-delay:0.2s;">
+      <div class="price-plan">Studio</div>
+      <div class="price-amount">$79</div>
+      <div class="price-period">/ month</div>
+      <div class="price-desc">Full team access with brand kits and priority generation.</div>
+      <ul class="price-features">
+        <li class="price-feature">5 team seats</li>
+        <li class="price-feature">Brand system</li>
+        <li class="price-feature">API access</li>
+        <li class="price-feature">Priority Claude</li>
+      </ul>
+      <button class="price-btn">Contact Sales</button>
+    </div>
+  </div>
+ </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="section">
+  <div class="container">
+    <div class="section-tag">Voices</div>
+  <h2 class="section-title reveal">WHAT MAKERS<br>SAY.</h2>
+  <div class="testimonials-grid">
+    <div class="testimonial reveal">
+      <p class="testimonial-text">"Cut my App Store and Google Play prep time from two days to under an hour. The AI actually understands what makes a good preview."</p>
+      <div class="testimonial-author">Sarah K.</div>
+      <div class="testimonial-role">iOS Developer, SF</div>
+    </div>
+    <div class="testimonial reveal" style="transition-delay:0.1s;">
+      <p class="testimonial-text">"Switched from a design agency. Same quality, a fraction of the cost, and I can iterate in real time."</p>
+      <div class="testimonial-author">Marcus T.</div>
+      <div class="testimonial-role">Indie Maker</div>
+    </div>
+    <div class="testimonial reveal" style="transition-delay:0.2s;">
+      <p class="testimonial-text">"The batch export alone is worth it. We have 14 apps and this saves the whole team days every month."</p>
+      <div class="testimonial-author">Priya N.</div>
+      <div class="testimonial-role">Studio Lead, London</div>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-bg-text">LAUNCH</div>
+  <div class="cta-inner">
+    <h2 class="cta-title reveal">YOUR SCREENS.<br>YOUR STORY.</h2>
+    <p class="cta-sub reveal" style="transition-delay:0.1s;">Start creating stunning App Store and Google Play previews today. No design skills required. No credit card needed.</p>
+    <div class="cta-btn-group reveal" style="transition-delay:0.2s;">
+      <button class="btn-primary" onclick="window.location.href='/register/'">Start For Free</button>
+      <button class="btn-outline">View Examples</button>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-logo">SCREENCRAFT</div>
+    <div class="footer-copy">© 2026 SCREENCRAFT. ALL RIGHTS RESERVED.</div>
+  </div>
+</footer>
+
+<script src="{% static 'js/index.js' %}"></script>
+</body>
+</html>
