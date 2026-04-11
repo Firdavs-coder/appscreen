@@ -1,12 +1,10 @@
 from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from apps.core.models import Project
 
 
 def index_page(request):
     return render(request, "index.html")
-
-
-def register_page(request):
-    return render(request, "register.html")
 
 
 def profile_page(request):
@@ -15,5 +13,12 @@ def profile_page(request):
     return render(request, "profile.html")
 
 
-def editor_page(request):
-    return render(request, "editor.html")
+@login_required
+def editor_page(request, project_id):
+    try:
+        project = Project.objects.get(uuid=project_id, user=request.user)
+    except (Project.DoesNotExist, ValueError):
+        return redirect("profile")
+    
+    return render(request, "editor.html", {"project": project})
+

@@ -91,19 +91,23 @@ function detectLanguageFromFilename(filename) {
  * @param {Object} screenshot - The screenshot object
  * @returns {Image|null} - The Image object to use for rendering
  */
+function isRenderableImage(image) {
+    return !!(image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
+}
+
 function getScreenshotImage(screenshot) {
     if (!screenshot) return null;
 
     const lang = state.currentLanguage;
 
     // Try current language first
-    if (screenshot.localizedImages?.[lang]?.image) {
+    if (isRenderableImage(screenshot.localizedImages?.[lang]?.image)) {
         return screenshot.localizedImages[lang].image;
     }
 
     // Fallback to first available language in project order
     for (const l of state.projectLanguages) {
-        if (screenshot.localizedImages?.[l]?.image) {
+        if (isRenderableImage(screenshot.localizedImages?.[l]?.image)) {
             return screenshot.localizedImages[l].image;
         }
     }
@@ -111,14 +115,34 @@ function getScreenshotImage(screenshot) {
     // Fallback to any available language
     if (screenshot.localizedImages) {
         for (const l of Object.keys(screenshot.localizedImages)) {
-            if (screenshot.localizedImages[l]?.image) {
+            if (isRenderableImage(screenshot.localizedImages[l]?.image)) {
                 return screenshot.localizedImages[l].image;
             }
         }
     }
 
     // Legacy fallback for old screenshot format
-    return screenshot.image || null;
+    return isRenderableImage(screenshot.image) ? screenshot.image : null;
+}
+
+/**
+ * Check if screenshot image assets are still loading
+ * @param {Object} screenshot - The screenshot object
+ * @returns {boolean} - True if loading is still in progress
+ */
+function isScreenshotImageLoading(screenshot) {
+    if (!screenshot) return false;
+    if (getScreenshotImage(screenshot)) return false;
+
+    if (screenshot.localizedImages) {
+        const hasPendingLocalizedImage = Object.values(screenshot.localizedImages).some((entry) => {
+            if (!entry?.src) return false;
+            return !isRenderableImage(entry.image);
+        });
+        if (hasPendingLocalizedImage) return true;
+    }
+
+    return !!(screenshot.image?.src && !isRenderableImage(screenshot.image));
 }
 
 /**

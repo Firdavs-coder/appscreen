@@ -2164,9 +2164,22 @@ const sidePreviewFarLeft = document.getElementById('side-preview-far-left');
 const sidePreviewFarRight = document.getElementById('side-preview-far-right');
 const previewStrip = document.querySelector('.preview-strip');
 const canvasWrapper = document.getElementById('canvas-wrapper');
+const canvasLoading = document.getElementById('canvas-loading');
+
+function setCanvasLoading(loading) {
+    if (!canvasLoading) return;
+    canvasLoading.classList.toggle('visible', !!loading);
+    canvasLoading.setAttribute('aria-hidden', loading ? 'false' : 'true');
+
+    const noScreenshotEl = document.getElementById('no-screenshot');
+    if (noScreenshotEl) {
+        noScreenshotEl.style.visibility = loading ? 'hidden' : '';
+    }
+}
 
 let isSliding = false;
 let skipSidePreviewRender = false;  // Flag to skip re-rendering side previews after pre-render
+let isInitialLoadInProgress = false;
 
 // Two-finger horizontal swipe to navigate between screenshots
 let swipeAccumulator = 0;
@@ -2211,6 +2224,8 @@ previewStrip.addEventListener('wheel', (e) => {
 let suppressSwitchModelUpdate = false;  // Flag to suppress updateCanvas from switchPhoneModel
 const fileInput = document.getElementById('file-input');
 const screenshotList = document.getElementById('screenshot-list');
+const filesList = document.getElementById('files-list');
+const mediaUploadInput = document.getElementById('media-upload-input');
 const noScreenshot = document.getElementById('no-screenshot');
 const canvasContextMenu = document.getElementById('canvas-context-menu');
 const canvasSelectionToolbar = document.getElementById('canvas-selection-toolbar');
@@ -2231,18 +2246,22 @@ let currentProjectId = null;
 let projects = [];
 const pendingSaveTimers = new Map();
 const requestedProjectId = (() => {
-    const raw = new URLSearchParams(window.location.search).get('project');
-    const parsed = Number.parseInt(raw || '', 10);
-    return Number.isFinite(parsed) ? parsed : null;
+    const match = window.location.pathname.match(/^\/editor\/([0-9a-fA-F-]{36})\/?$/);
+    return match ? match[1] : null;
 })();
 
 async function apiRequest(path, options = {}) {
-    const response = await fetch(path, {
-        credentials: 'include',
-        headers: {
+    const isFormData = options.body instanceof FormData;
+    const headers = isFormData
+        ? { ...(options.headers || {}) }
+        : {
             'Content-Type': 'application/json',
             ...(options.headers || {})
-        },
+        };
+
+    const response = await fetch(path, {
+        credentials: 'include',
+        headers,
         ...options
     });
 
@@ -2281,6 +2300,294 @@ function scheduleServerSave(snapshot, projectId) {
     }, 500);
 
     pendingSaveTimers.set(targetProjectId, timerId);
+}
+
+async function uploadMediaFile(file) {
+    if (!file) return null;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const uploaded = await apiRequest('/api/media-files/', {
+        method: 'POST',
+        body: formData
+    });
+
+    await refreshMediaLibrary();
+    return uploaded;
+}
+
+function getImageFromUrl(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Image failed to load'));
+        img.src = url;
+    });
+}
+
+function formatFileSize(bytes) {
+    if (!bytes || bytes < 1024) return `${bytes || 0} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function applyMediaAsScreenshot(url, name) {
+    try {
+        const img = await getImageFromUrl(url);
+        createNewScreenshot(img, url, name || 'Uploaded Image', detectLanguageFromFilename(name || 'image.png'), state.outputDevice);
+        state.selectedIndex = state.screenshots.length - 1;
+        updateScreenshotList();
+        syncUIWithState();
+        updateCanvas();
+        saveState();
+    } catch (e) {
+        console.error('Unable to use media as screenshot:', e);
+    }
+}
+
+async function replaceScreenshotWithMedia(index, url, name) {
+    const screenshot = state.screenshots[index];
+    if (!screenshot) return;
+
+    try {
+        const img = await getImageFromUrl(url);
+        const lang = state.currentLanguage;
+
+        if (!screenshot.localizedImages) {
+            screenshot.localizedImages = {};
+        }
+
+        screenshot.localizedImages[lang] = {
+            image: img,
+            src: url,
+            name: name || 'Uploaded Image'
+        };
+        screenshot.image = img;
+
+        state.selectedIndex = index;
+        updateScreenshotList();
+        syncUIWithState();
+        updateCanvas();
+        saveState();
+    } catch (e) {
+        console.error('Unable to replace screenshot with media:', e);
+    }
+}
+
+function screenshotUsesMediaUrl(screenshot, mediaUrl) {
+    if (!screenshot || !mediaUrl) return false;
+
+    if (screenshot.src === mediaUrl || screenshot.image?.src === mediaUrl) {
+        return true;
+    }
+
+    const localizedImages = screenshot.localizedImages || {};
+    return Object.values(localizedImages).some((langData) => {
+        return langData?.src === mediaUrl || langData?.image?.src === mediaUrl;
+    });
+}
+
+function deleteScreenshotsLinkedToMediaUrl(mediaUrl) {
+    if (!mediaUrl || !Array.isArray(state.screenshots) || state.screenshots.length === 0) return 0;
+
+    const indicesToDelete = [];
+    state.screenshots.forEach((screenshot, index) => {
+        if (screenshotUsesMediaUrl(screenshot, mediaUrl)) {
+            indicesToDelete.push(index);
+        }
+    });
+
+    if (!indicesToDelete.length) return 0;
+
+    const wasSelectedScreenshotDeleted = indicesToDelete.includes(state.selectedIndex);
+
+    for (let i = indicesToDelete.length - 1; i >= 0; i--) {
+        state.screenshots.splice(indicesToDelete[i], 1);
+    }
+
+    if (!state.screenshots.length) {
+        state.selectedIndex = 0;
+        selectedCanvasTarget = null;
+        return indicesToDelete.length;
+    }
+
+    const deletedBeforeSelection = indicesToDelete.filter(index => index < state.selectedIndex).length;
+    state.selectedIndex = Math.max(0, state.selectedIndex - deletedBeforeSelection);
+
+    if (wasSelectedScreenshotDeleted) {
+        state.selectedIndex = Math.min(indicesToDelete[0], state.screenshots.length - 1);
+    }
+
+    state.selectedIndex = Math.min(state.selectedIndex, state.screenshots.length - 1);
+    return indicesToDelete.length;
+}
+
+async function deleteMediaFile(fileId, fileUrl = '') {
+    try {
+        await apiRequest(`/api/media-files/${fileId}/`, {
+            method: 'DELETE'
+        });
+        if (fileUrl) {
+            const deletedCount = deleteScreenshotsLinkedToMediaUrl(fileUrl);
+            if (deletedCount > 0) {
+                if (state.screenshots.length > 0) {
+                    setSelectedCanvasTarget({ type: 'screenshot' }, { skipCanvasRefresh: true });
+                } else {
+                    setSelectedCanvasTarget(null, { skipCanvasRefresh: true });
+                }
+                updateScreenshotList();
+                syncUIWithState();
+                updateGradientStopsUI();
+                updateCanvas();
+                saveState();
+            }
+        }
+        await refreshMediaLibrary();
+    } catch (e) {
+        console.error('Failed to delete media file:', e);
+    }
+}
+
+async function applyMediaAsBackground(url) {
+    try {
+        const img = await getImageFromUrl(url);
+        setBackground('type', 'image');
+        setBackground('image', img);
+        const preview = document.getElementById('bg-image-preview');
+        if (preview) {
+            preview.src = url;
+            preview.style.display = 'block';
+        }
+        updateCanvas();
+        saveState();
+    } catch (e) {
+        console.error('Unable to use media as background:', e);
+    }
+}
+
+async function refreshMediaLibrary() {
+    if (!filesList) return;
+
+    try {
+        const files = await apiRequest('/api/media-files/');
+        if (!Array.isArray(files) || files.length === 0) {
+            filesList.innerHTML = '<div class="files-empty">No uploaded files yet</div>';
+            return;
+        }
+
+        filesList.innerHTML = files.map((file) => `
+            <div class="file-item" draggable="true" data-file-id="${file.id}" data-file-url="${file.url.replace(/'/g, "\\'")}" data-file-name="${(file.name || '').replace(/'/g, "\\'")}">
+                <img class="file-thumb" src="${file.url}" alt="${file.name}">
+                <div class="file-info">
+                    <div class="file-name" title="${file.name}">${file.name}</div>
+                    <div class="file-meta">${formatFileSize(file.size)}</div>
+                </div>
+                <div class="file-actions">
+                    <button class="file-action-btn file-delete-btn" type="button" title="Delete file" aria-label="Delete file" data-file-id="${file.id}" data-file-url="${file.url.replace(/'/g, "\\'")}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+                            <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"></path>
+                            <path d="M10 11v6"></path>
+                            <path d="M14 11v6"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        filesList.querySelectorAll('.file-item').forEach((item) => {
+            item.addEventListener('dragstart', (e) => {
+                const payload = {
+                    id: item.dataset.fileId,
+                    url: item.dataset.fileUrl,
+                    name: item.dataset.fileName || ''
+                };
+                e.dataTransfer.effectAllowed = 'copy';
+                e.dataTransfer.setData('application/x-media-file', JSON.stringify(payload));
+                e.dataTransfer.setData('text/plain', payload.url || '');
+            });
+        });
+
+        filesList.querySelectorAll('.file-delete-btn').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const fileId = btn.dataset.fileId;
+                const fileUrl = btn.dataset.fileUrl || '';
+                if (fileId) {
+                    deleteMediaFile(fileId, fileUrl);
+                }
+            });
+        });
+    } catch (e) {
+        console.error('Failed to load media library:', e);
+    }
+}
+
+window.useMediaAsScreenshot = applyMediaAsScreenshot;
+window.useMediaAsBackground = applyMediaAsBackground;
+
+function getDraggedMediaFileData(event) {
+    const dataTransfer = event?.dataTransfer;
+    if (!dataTransfer) return null;
+
+    const rawData = dataTransfer.getData('application/x-media-file') || dataTransfer.getData('text/plain');
+    if (!rawData) return null;
+
+    try {
+        return JSON.parse(rawData);
+    } catch (_error) {
+        const url = rawData.trim();
+        return url ? { url, name: '' } : null;
+    }
+}
+
+function isMediaFileDrag(event) {
+    const types = event?.dataTransfer?.types;
+    if (!types) return false;
+
+    if (typeof types.includes === 'function') {
+        return types.includes('application/x-media-file') || types.includes('Files');
+    }
+
+    return Array.from(types).includes('application/x-media-file') || Array.from(types).includes('Files');
+}
+
+async function handleMediaDropOnScreenshot(index, event) {
+    const mediaFile = getDraggedMediaFileData(event);
+    if (!mediaFile) return false;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    await replaceScreenshotWithMedia(index, mediaFile.url, mediaFile.name);
+    return true;
+}
+
+function bindMediaDropTarget(wrapper, getTargetIndex) {
+    if (!wrapper || wrapper.dataset.mediaDropBound === 'true') return;
+
+    wrapper.dataset.mediaDropBound = 'true';
+
+    wrapper.addEventListener('dragover', (e) => {
+        if (!isMediaFileDrag(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        wrapper.classList.add('drop-active');
+    });
+
+    wrapper.addEventListener('dragleave', (e) => {
+        if (!wrapper.contains(e.relatedTarget)) {
+            wrapper.classList.remove('drop-active');
+        }
+    });
+
+    wrapper.addEventListener('drop', async (e) => {
+        wrapper.classList.remove('drop-active');
+        const targetIndex = getTargetIndex();
+        await handleMediaDropOnScreenshot(targetIndex, e);
+    });
 }
 
 function openDatabase() {
@@ -2447,10 +2754,13 @@ function updateProjectSelector() {
 
 // Initialize
 async function init() {
+    isInitialLoadInProgress = true;
+    updateCanvas();
     try {
         await openDatabase();
         await loadProjectsMeta();
         await loadState();
+        await refreshMediaLibrary();
         syncUIWithState();
         updateCanvas();
         resetHistoryFromCurrentState();
@@ -2460,6 +2770,9 @@ async function init() {
         syncUIWithState();
         updateCanvas();
         resetHistoryFromCurrentState();
+    } finally {
+        isInitialLoadInProgress = false;
+        updateCanvas();
     }
 }
 
@@ -3112,9 +3425,7 @@ async function switchProject(projectId) {
     saveState();
 
     currentProjectId = projectId;
-    const url = new URL(window.location.href);
-    url.searchParams.set('project', String(projectId));
-    window.history.replaceState({}, '', url.toString());
+    window.history.replaceState({}, '', `/editor/${projectId}/`);
     saveProjectsMeta();
 
     // Reset and load new project
@@ -3740,18 +4051,31 @@ function setupElementEventListeners() {
     const graphicInput = document.getElementById('element-graphic-input');
     if (addGraphicBtn && graphicInput) {
         addGraphicBtn.addEventListener('click', () => graphicInput.click());
-        graphicInput.addEventListener('change', (e) => {
+        graphicInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                const img = new Image();
-                img.onload = () => {
-                    addGraphicElement(img, ev.target.result, file.name);
-                };
-                img.src = ev.target.result;
+
+            let sourceUrl = null;
+            try {
+                const uploaded = await uploadMediaFile(file);
+                sourceUrl = uploaded?.url || null;
+            } catch (uploadError) {
+                console.error('Graphic upload failed, using data URL fallback:', uploadError);
+            }
+
+            if (!sourceUrl) {
+                sourceUrl = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => resolve(ev.target.result);
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            const img = new Image();
+            img.onload = () => {
+                addGraphicElement(img, sourceUrl, file.name);
             };
-            reader.readAsDataURL(file);
+            img.src = sourceUrl;
             graphicInput.value = '';
         });
     }
@@ -3991,6 +4315,8 @@ function setupElementCanvasDrag() {
     const canvasWrapper = document.getElementById('canvas-wrapper');
     const previewCanvas = document.getElementById('preview-canvas');
     if (!previewCanvas) return;
+
+    bindMediaDropTarget(canvasWrapper, () => (Number.isInteger(state.selectedIndex) ? state.selectedIndex : 0));
 
     // Snap guides state
     const SNAP_THRESHOLD = 1.5; // percentage units (of canvas width/height)
@@ -5201,6 +5527,22 @@ function setupEventListeners() {
     // File upload
     fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
 
+    const addMediaBtn = document.getElementById('add-media-btn');
+    if (addMediaBtn && mediaUploadInput) {
+        addMediaBtn.addEventListener('click', () => mediaUploadInput.click());
+        mediaUploadInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files || []);
+            for (const file of files) {
+                try {
+                    await uploadMediaFile(file);
+                } catch (err) {
+                    console.error('Media upload failed:', err);
+                }
+            }
+            mediaUploadInput.value = '';
+        });
+    }
+
     // Add screenshots button
     document.querySelectorAll('#add-screenshots-btn').forEach(btn => {
         btn.addEventListener('click', () => fileInput.click());
@@ -5956,21 +6298,36 @@ function setupEventListeners() {
     const bgImageUpload = document.getElementById('bg-image-upload');
     const bgImageInput = document.getElementById('bg-image-input');
     bgImageUpload.addEventListener('click', () => bgImageInput.click());
-    bgImageInput.addEventListener('change', (e) => {
-        if (e.target.files[0]) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const img = new Image();
-                img.onload = () => {
-                    setBackground('image', img);
-                    document.getElementById('bg-image-preview').src = event.target.result;
-                    document.getElementById('bg-image-preview').style.display = 'block';
-                    updateCanvas();
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(e.target.files[0]);
+    bgImageInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        let sourceUrl = null;
+        try {
+            const uploaded = await uploadMediaFile(file);
+            sourceUrl = uploaded?.url || null;
+        } catch (uploadError) {
+            console.error('Background upload failed, using data URL fallback:', uploadError);
         }
+
+        if (!sourceUrl) {
+            sourceUrl = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (event) => resolve(event.target.result);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        const img = new Image();
+        img.onload = () => {
+            setBackground('image', img);
+            document.getElementById('bg-image-preview').src = sourceUrl;
+            document.getElementById('bg-image-preview').style.display = 'block';
+            updateCanvas();
+            saveState();
+        };
+        img.src = sourceUrl;
+        bgImageInput.value = '';
     });
 
     document.getElementById('bg-image-fit').addEventListener('change', (e) => {
@@ -7808,65 +8165,77 @@ async function processFilesSequentially(files) {
 }
 
 async function processImageFile(file) {
+    let sourceUrl = null;
+    try {
+        const uploaded = await uploadMediaFile(file);
+        sourceUrl = uploaded?.url || null;
+    } catch (uploadError) {
+        console.error('Upload failed, falling back to browser data URL:', uploadError);
+    }
+
+    if (!sourceUrl) {
+        sourceUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsDataURL(file);
+        });
+    }
+
     return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const img = new Image();
-            img.onload = async () => {
-                // Detect device type based on aspect ratio
-                const ratio = img.width / img.height;
-                let deviceType = 'iPhone';
-                if (ratio > 0.6) {
-                    deviceType = 'iPad';
-                }
+        const img = new Image();
+        img.onload = async () => {
+            // Detect device type based on aspect ratio
+            const ratio = img.width / img.height;
+            let deviceType = 'iPhone';
+            if (ratio > 0.6) {
+                deviceType = 'iPad';
+            }
 
-                // Detect language from filename
-                const detectedLang = detectLanguageFromFilename(file.name);
+            // Detect language from filename
+            const detectedLang = detectLanguageFromFilename(file.name);
 
-                // Check if this is a localized version of an existing screenshot
-                const existingIndex = findScreenshotByBaseFilename(file.name);
+            // Check if this is a localized version of an existing screenshot
+            const existingIndex = findScreenshotByBaseFilename(file.name);
 
-                if (existingIndex !== -1) {
-                    // Found a screenshot with matching base filename
-                    const existingScreenshot = state.screenshots[existingIndex];
-                    const hasExistingLangImage = existingScreenshot.localizedImages?.[detectedLang]?.image;
+            if (existingIndex !== -1) {
+                // Found a screenshot with matching base filename
+                const existingScreenshot = state.screenshots[existingIndex];
+                const hasExistingLangImage = existingScreenshot.localizedImages?.[detectedLang]?.image;
 
-                    if (hasExistingLangImage) {
-                        // There's already an image for this language - show dialog
-                        const choice = await showDuplicateDialog({
-                            existingIndex: existingIndex,
-                            detectedLang: detectedLang,
-                            newImage: img,
-                            newSrc: e.target.result,
-                            newName: file.name
-                        });
+                if (hasExistingLangImage) {
+                    // There's already an image for this language - show dialog
+                    const choice = await showDuplicateDialog({
+                        existingIndex: existingIndex,
+                        detectedLang: detectedLang,
+                        newImage: img,
+                        newSrc: sourceUrl,
+                        newName: file.name
+                    });
 
-                        if (choice === 'replace') {
-                            addLocalizedImage(existingIndex, detectedLang, img, e.target.result, file.name);
-                        } else if (choice === 'create') {
-                            createNewScreenshot(img, e.target.result, file.name, detectedLang, deviceType);
-                        }
-                        // 'ignore' does nothing
-                    } else {
-                        // No image for this language yet - just add it silently
-                        addLocalizedImage(existingIndex, detectedLang, img, e.target.result, file.name);
+                    if (choice === 'replace') {
+                        addLocalizedImage(existingIndex, detectedLang, img, sourceUrl, file.name);
+                    } else if (choice === 'create') {
+                        createNewScreenshot(img, sourceUrl, file.name, detectedLang, deviceType);
                     }
+                    // 'ignore' does nothing
                 } else {
-                    // No duplicate - create new screenshot
-                    createNewScreenshot(img, e.target.result, file.name, detectedLang, deviceType);
+                    // No image for this language yet - just add it silently
+                    addLocalizedImage(existingIndex, detectedLang, img, sourceUrl, file.name);
                 }
+            } else {
+                // No duplicate - create new screenshot
+                createNewScreenshot(img, sourceUrl, file.name, detectedLang, deviceType);
+            }
 
-                // Update 3D texture if in 3D mode
-                const ss = getScreenshotSettings();
-                if (ss.use3D && typeof updateScreenTexture === 'function') {
-                    updateScreenTexture();
-                }
-                updateCanvas();
-                resolve();
-            };
-            img.src = e.target.result;
+            // Update 3D texture if in 3D mode
+            const ss = getScreenshotSettings();
+            if (ss.use3D && typeof updateScreenTexture === 'function') {
+                updateScreenTexture();
+            }
+            updateCanvas();
+            resolve();
         };
-        reader.readAsDataURL(file);
+        img.src = sourceUrl;
     });
 }
 
@@ -8101,7 +8470,7 @@ function updateScreenshotList() {
             // Don't remove here - let dragover on other items handle it
         });
 
-        item.addEventListener('drop', (e) => {
+        item.addEventListener('drop', async (e) => {
             e.preventDefault();
 
             // Determine drop position based on cursor
@@ -8109,9 +8478,16 @@ function updateScreenshotList() {
             const midpoint = rect.top + rect.height / 2;
             const dropAbove = e.clientY < midpoint;
 
+            const mediaFile = getDraggedMediaFileData(e);
+
             document.querySelectorAll('.screenshot-item.drag-insert-after, .screenshot-item.drag-insert-before').forEach(el => {
                 el.classList.remove('drag-insert-after', 'drag-insert-before');
             });
+
+            if (mediaFile && draggedScreenshotIndex === null) {
+                await replaceScreenshotWithMedia(index, mediaFile.url, mediaFile.name);
+                return;
+            }
 
             if (draggedScreenshotIndex !== null && draggedScreenshotIndex !== index) {
                 // Calculate target index based on drop position
@@ -8472,42 +8848,54 @@ function replaceScreenshot(index) {
     fileInput.style.display = 'none';
     document.body.appendChild(fileInput);
 
-    fileInput.addEventListener('change', (e) => {
+    fileInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) {
             document.body.removeChild(fileInput);
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const img = new Image();
-            img.onload = () => {
-                // Get the current language
-                const lang = state.currentLanguage;
+        let sourceUrl = null;
+        try {
+            const uploaded = await uploadMediaFile(file);
+            sourceUrl = uploaded?.url || null;
+        } catch (uploadError) {
+            console.error('Replace upload failed, using data URL fallback:', uploadError);
+        }
 
-                // Update the localized image for the current language
-                if (!screenshot.localizedImages) {
-                    screenshot.localizedImages = {};
-                }
+        if (!sourceUrl) {
+            sourceUrl = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (event) => resolve(event.target.result);
+                reader.readAsDataURL(file);
+            });
+        }
 
-                screenshot.localizedImages[lang] = {
-                    image: img,
-                    src: event.target.result,
-                    name: file.name
-                };
+        const img = new Image();
+        img.onload = () => {
+            // Get the current language
+            const lang = state.currentLanguage;
 
-                // Also update legacy image field for compatibility
-                screenshot.image = img;
+            // Update the localized image for the current language
+            if (!screenshot.localizedImages) {
+                screenshot.localizedImages = {};
+            }
 
-                // Update displays
-                updateScreenshotList();
-                updateCanvas();
-                saveState();
+            screenshot.localizedImages[lang] = {
+                image: img,
+                src: sourceUrl,
+                name: file.name
             };
-            img.src = event.target.result;
+
+            // Also update legacy image field for compatibility
+            screenshot.image = img;
+
+            // Update displays
+            updateScreenshotList();
+            updateCanvas();
+            saveState();
         };
-        reader.readAsDataURL(file);
+        img.src = sourceUrl;
 
         document.body.removeChild(fileInput);
     });
@@ -8595,6 +8983,7 @@ function updateCanvas(options = {}) {
 
     // Empty state: don't render the default gradient screen
     if (state.screenshots.length === 0) {
+        setCanvasLoading(isInitialLoadInProgress);
         ctx.clearRect(0, 0, dims.width, dims.height);
         hideCanvasSelectionToolbar();
         if (!skipInlinePreviews) {
@@ -8602,6 +8991,11 @@ function updateCanvas(options = {}) {
         }
         return;
     }
+
+    const screenshotsStillLoading = state.screenshots.some((screenshot) =>
+        typeof isScreenshotImageLoading === 'function' && isScreenshotImageLoading(screenshot)
+    );
+    setCanvasLoading(isInitialLoadInProgress || screenshotsStillLoading);
 
     // Draw background
     drawBackground();
@@ -8696,6 +9090,7 @@ function updateInlinePreviews() {
         const wrapper = document.createElement('div');
         wrapper.className = 'canvas-wrapper canvas-wrapper-inline';
         wrapper.dataset.index = index;
+        bindMediaDropTarget(wrapper, () => index);
 
         const inlineCanvas = document.createElement('canvas');
         const inlineCtx = inlineCanvas.getContext('2d');
@@ -10280,6 +10675,14 @@ function initializeCustomDropdowns() {
             return;
         }
 
+        const options = Array.from(select.options || []);
+        if (options.length === 0) {
+            return;
+        }
+
+        const selectedOption = options[select.selectedIndex] || options[0];
+        const getOptionText = (option) => option?.text ?? option?.label ?? '';
+
         // Create wrapper
         const wrapper = document.createElement('div');
         wrapper.className = 'custom-select';
@@ -10291,7 +10694,7 @@ function initializeCustomDropdowns() {
         
         const triggerText = document.createElement('span');
         triggerText.className = 'custom-select-trigger-text';
-        triggerText.textContent = select.options[select.selectedIndex].text;
+        triggerText.textContent = getOptionText(selectedOption);
         
         const triggerArrow = document.createElement('span');
         triggerArrow.className = 'custom-select-trigger-arrow';
@@ -10305,7 +10708,7 @@ function initializeCustomDropdowns() {
         dropdown.className = 'custom-select-dropdown';
         
         // Add options to dropdown
-        Array.from(select.options).forEach(option => {
+        options.forEach(option => {
             const optionDiv = document.createElement('div');
             optionDiv.className = 'custom-select-option';
             if (option.selected) {
@@ -10315,9 +10718,9 @@ function initializeCustomDropdowns() {
             // Support custom data attribute for subtitle
             const subtitle = option.dataset?.subtitle || '';
             if (subtitle) {
-                optionDiv.innerHTML = `<div class="custom-select-option-main">${option.text}</div><div class="custom-select-option-sub">${subtitle}</div>`;
+                optionDiv.innerHTML = `<div class="custom-select-option-main">${getOptionText(option)}</div><div class="custom-select-option-sub">${subtitle}</div>`;
             } else {
-                optionDiv.innerHTML = option.text;
+                optionDiv.innerHTML = getOptionText(option);
             }
             
             optionDiv.dataset.value = option.value;
@@ -10328,9 +10731,9 @@ function initializeCustomDropdowns() {
                 
                 // Update trigger text with subtitle if available
                 if (subtitle) {
-                    triggerText.innerHTML = `<div><div>${option.text}</div><div style="font-size: 12px; color: var(--text-secondary);">${subtitle}</div></div>`;
+                    triggerText.innerHTML = `<div><div>${getOptionText(option)}</div><div style="font-size: 12px; color: var(--text-secondary);">${subtitle}</div></div>`;
                 } else {
-                    triggerText.textContent = option.text;
+                    triggerText.textContent = getOptionText(option);
                 }
                 
                 // Update selected state

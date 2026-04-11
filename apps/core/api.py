@@ -1,13 +1,12 @@
 import json
 
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
-from django.contrib.auth.models import User
 from django.db.models import Sum, Count
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from apps.core.models import Project, UsageEvent
+from apps.core.models import Project, UsageEvent, UserMediaFile
 
 
 def _json_body(request):
@@ -20,14 +19,27 @@ def _require_auth(request):
     if not request.user.is_authenticated:
         return JsonResponse({"detail": "Authentication required"}, status=401)
     return None
+
+
 def _project_to_dict(project):
     return {
-        "id": project.id,
+        "id": str(project.uuid),
         "name": project.name,
         "description": project.description,
         "payload": project.payload,
         "created_at": project.created_at.isoformat(),
         "updated_at": project.updated_at.isoformat(),
+    }
+
+
+def _media_file_to_dict(media_file):
+    return {
+        "id": media_file.id,
+        "name": media_file.original_name,
+        "url": media_file.file.url,
+        "mime_type": media_file.mime_type,
+        "size": media_file.size,
+        "created_at": media_file.created_at.isoformat(),
     }
 
 
@@ -78,7 +90,7 @@ def projects(request):
     if request.method == "GET":
         items = [
             {
-                "id": project.id,
+                "id": str(project.uuid),
                 "name": project.name,
                 "description": project.description,
                 "payload": project.payload,
@@ -97,7 +109,7 @@ def projects(request):
         payload=data.get("payload") or {},
     )
     return JsonResponse({
-        "id": project.id,
+        "id": str(project.uuid),
         "name": project.name,
         "description": project.description,
         "payload": project.payload,
@@ -112,15 +124,15 @@ def project_detail(request, project_id):
     auth_error = _require_auth(request)
     if auth_error:
         return auth_error
-    
+
     try:
-        project = Project.objects.get(id=project_id, user=request.user)
+        project = Project.objects.get(uuid=project_id, user=request.user)
     except Project.DoesNotExist:
         return JsonResponse({"detail": "Project not found"}, status=404)
-    
+
     if request.method == "GET":
         return JsonResponse(_project_to_dict(project))
-    
+
     elif request.method == "POST":
         data = _json_body(request)
         if "name" in data:
@@ -131,10 +143,57 @@ def project_detail(request, project_id):
             project.payload = data["payload"]
         project.save()
         return JsonResponse(_project_to_dict(project))
-    
+
     elif request.method == "DELETE":
         project.delete()
         return JsonResponse({}, status=204)
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def media_files(request):
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+
+    if request.method == "GET":
+        items = [_media_file_to_dict(item) for item in UserMediaFile.objects.filter(user=request.user)]
+        return JsonResponse(items, safe=False)
+
+    uploaded_file = request.FILES.get("file")
+    if not uploaded_file:
+        return JsonResponse({"detail": "No file uploaded"}, status=400)
+
+    content_type = (uploaded_file.content_type or "").lower()
+    if not content_type.startswith("image/"):
+        return JsonResponse({"detail": "Only image files are allowed"}, status=400)
+
+    media_file = UserMediaFile.objects.create(
+        user=request.user,
+        file=uploaded_file,
+        original_name=uploaded_file.name,
+        mime_type=content_type,
+        size=uploaded_file.size or 0,
+    )
+    return JsonResponse(_media_file_to_dict(media_file), status=201)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def media_file_detail(request, file_id):
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+
+    try:
+        media_file = UserMediaFile.objects.get(id=file_id, user=request.user)
+    except UserMediaFile.DoesNotExist:
+        return JsonResponse({"detail": "Media file not found"}, status=404)
+
+    if media_file.file:
+        media_file.file.delete(save=False)
+    media_file.delete()
+    return JsonResponse({}, status=204)
 
 
 @csrf_exempt

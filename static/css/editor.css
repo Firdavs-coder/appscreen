@@ -246,6 +246,7 @@ html.tauri-app .right-sidebar {
 }
 
 .add-btn {
+    width: 100%;
     flex: 1;
     display: flex;
     align-items: center;
@@ -288,6 +289,7 @@ html.tauri-app .right-sidebar {
 
 .sidebar-right .sidebar-header {
     flex-shrink: 0;
+    margin-bottom: 0;
 }
 
 .sidebar-right .sidebar-header .tabs {
@@ -298,16 +300,23 @@ html.tauri-app .right-sidebar {
     gap: 0;
     background: transparent;
     border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .sidebar-right .sidebar-header .tab {
-    flex: 1 1 0;
-    width: 0;
+    flex: 1 0 64px;
+    min-width: 64px;
     border-radius: 0;
     padding: 10px 8px;
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
-    font-size: 13px;
+    font-size: 12px;
+}
+
+.sidebar-right .sidebar-header .tab span {
+    white-space: nowrap;
 }
 
 .sidebar-right .sidebar-header .tab.active {
@@ -381,6 +390,86 @@ html.tauri-app .right-sidebar {
     display: flex;
     flex-direction: column;
     gap: 2px;
+}
+
+.files-popover-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+#tab-files {
+    padding-bottom: 16px;
+}
+
+.files-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.files-empty {
+    padding: 10px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    border: 1px dashed var(--border-color);
+    text-align: center;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+}
+
+.file-thumb {
+    width: 28px;
+    height: 28px;
+    object-fit: cover;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-name {
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-meta {
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+.file-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.file-action-btn {
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-primary);
+    padding: 3px 6px;
+    font-size: 10px;
+    cursor: pointer;
+}
+
+.file-action-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 .sidebar-content.drop-active {
@@ -1237,6 +1326,46 @@ input[type="range"]::-webkit-slider-thumb {
     color: var(--text-secondary);
     pointer-events: none;
     z-index: 10;
+}
+
+.canvas-loading {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    background: color-mix(in srgb, var(--bg-tertiary) 48%, transparent);
+    backdrop-filter: blur(1px);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    pointer-events: none;
+    z-index: 14;
+}
+
+.canvas-loading.visible {
+    display: flex;
+}
+
+.canvas-loading-spinner {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--border-color) 65%, transparent);
+    border-top-color: var(--accent-color);
+    animation: canvas-loading-spin 0.8s linear infinite;
+}
+
+@keyframes canvas-loading-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .no-screenshot svg {
@@ -3906,7 +4035,7 @@ input[type="range"]::-webkit-slider-thumb {
 /* --- App container: 2-column with top bar row --- */
 .app-container {
     display: grid;
-    grid-template-columns: 340px 1fr;
+    grid-template-columns: 390px 1fr;
     grid-template-rows: auto 1fr;
     min-height: 100vh;
     max-height: 100vh;
@@ -4010,6 +4139,50 @@ input[type="range"]::-webkit-slider-thumb {
     border-left: none;
     border-right: 1px solid var(--border-color);
     max-height: none;
+    display: grid;
+    grid-template-columns: 84px 1fr;
+    grid-template-rows: 1fr;
+    overflow: hidden;
+}
+
+.sidebar-right .sidebar-header {
+    grid-column: 1;
+    grid-row: 1;
+    border-right: 1px solid var(--border-color);
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.sidebar-right .sidebar-header .tabs {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    height: 100%;
+    border-bottom: none;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.sidebar-right .sidebar-header .tab {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    border-bottom: none;
+    border-left: 2px solid transparent;
+    margin-bottom: 0;
+    padding: 11px 6px;
+    font-size: 12px;
+}
+
+.sidebar-right .sidebar-header .tab.active {
+    border-left-color: var(--accent);
+    border-bottom-color: transparent;
+}
+
+.sidebar-right .sidebar-content {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
 }
 
 /* --- Canvas area → column 2, row 2 --- */

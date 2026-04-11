@@ -410,6 +410,10 @@
                     <canvas id="preview-canvas-far-right"></canvas>
                 </div>
             </div>
+            <div class="canvas-loading" id="canvas-loading" aria-live="polite" aria-hidden="true">
+                <div class="canvas-loading-spinner" aria-hidden="true"></div>
+                <span>Loading screens…</span>
+            </div>
         </div>
 
         <!-- Right Sidebar - Settings -->
@@ -454,6 +458,12 @@
                             <rect x="10" y="2" width="12" height="10" rx="2"/>
                         </svg>
                         <span>Popouts</span>
+                    </button>
+                    <button class="tab" data-tab="files">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                        </svg>
+                        <span>Files</span>
                     </button>
                 </div>
             </div>
@@ -1574,6 +1584,21 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-files">
+                <input type="file" id="media-upload-input" multiple accept="image/*" hidden>
+                <div class="files-actions" style="margin-bottom: 10px;">
+                    <button class="add-btn" id="add-media-btn" title="Upload to files">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        Upload Image
+                    </button>
+                </div>
+                <div class="files-list" id="files-list">
+                    <div class="files-empty">No uploaded files yet</div>
                 </div>
             </div>
 

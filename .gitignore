@@ -25,3 +25,5 @@ frontend-dist/
 
 __pycache__/
 *.pyc
+
+media/

@@ -77,6 +77,8 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [PROJECT_ROOT / "static"]
+MEDIA_URL = "/media/"
+MEDIA_ROOT = PROJECT_ROOT / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 APP_NAME = os.getenv("APP_NAME", "SCREENCRAFT")
