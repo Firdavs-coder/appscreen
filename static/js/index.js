@@ -4,6 +4,48 @@ window.addEventListener('scroll', () => {
   document.getElementById('progressBar').style.width = Math.min(pct,100) + '%';
 });
 
+// LOGIN MODAL
+function openLoginModal() {
+  document.getElementById('loginModal').classList.add('open');
+}
+
+function closeLoginModal() {
+  document.getElementById('loginModal').classList.remove('open');
+}
+
+document.getElementById('googleLoginBtn')?.addEventListener('click', async () => {
+  const notice = document.getElementById('authNotice');
+  notice.textContent = 'Redirecting to Google login...';
+  notice.className = 'auth-notice muted';
+  
+  // TODO: Implement Google OAuth flow
+  // For now, this shows the UI is ready for Google auth
+  try {
+    const response = await fetch('/api/auth/google/', {
+      method: 'GET',
+      credentials: 'include'
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.redirect_url) {
+        window.location.href = data.redirect_url;
+      }
+    } else {
+      // If auth succeeds, redirect to profile
+      const meResponse = await fetch('/api/auth/me/', {
+        credentials: 'include'
+      });
+      if (meResponse.ok) {
+        window.location.href = '/profile/';
+      }
+    }
+  } catch (error) {
+    notice.textContent = 'Google login will be implemented soon.';
+    notice.className = 'auth-notice muted';
+  }
+});
+
 const obs = new IntersectionObserver(entries => {
   entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); } });
 }, { threshold: 0.1 });

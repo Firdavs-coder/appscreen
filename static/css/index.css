@@ -971,6 +971,215 @@
       letter-spacing: 0.08em;
   }
 
+  /* AUTH PAGE */
+  .auth-shell {
+      max-width: 400px;
+      margin: 0 auto;
+      padding: 5rem 1.5rem;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+  }
+
+  .auth-grid {
+      display: block;
+      width: 100%;
+  }
+
+  .auth-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      padding: 2rem;
+  }
+
+  .auth-notice {
+      margin-top: 0.9rem;
+      min-height: 1.2rem;
+      font-size: 0.88rem;
+      font-family: var(--font-mono);
+      color: var(--gray);
+  }
+
+  .auth-notice.ok {
+      color: #0a7b34;
+  }
+
+  .auth-notice.err {
+      color: #b00020;
+  }
+
+  .auth-notice.muted {
+      color: var(--gray-light);
+  }
+
+  .auth-tabs {
+      display: flex;
+      gap: 0.6rem;
+      margin: 1.2rem 0 0.8rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.6rem;
+  }
+
+  .auth-tabs button {
+      padding: 0.5rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      transition: color 0.15s;
+      color: var(--gray);
+  }
+
+  .auth-tabs button.primary {
+      border: none;
+      background: transparent;
+      color: var(--black);
+      border-bottom: 2px solid var(--black);
+      padding-bottom: calc(0.5rem - 2px);
+  }
+
+  .auth-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 400;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin: 1.2rem 0 0.6rem;
+      color: var(--black);
+  }
+
+  .auth-input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.9rem 1rem;
+      border: 1px solid var(--border);
+      font-size: 0.95rem;
+      background: var(--white);
+      font-family: var(--font-body);
+      color: var(--black);
+      transition: border-color 0.15s;
+  }
+
+  .auth-input:focus {
+      outline: none;
+      border-color: var(--black);
+  }
+
+  .auth-input::placeholder {
+      color: var(--gray-light);
+  }
+
+  .google-btn {
+      width: 100%;
+      padding: 0.9rem 1rem;
+      margin-top: 1.6rem;
+      border: 1px solid var(--border);
+      background: var(--white);
+      color: var(--black);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+  }
+
+  .google-btn:hover {
+      background: var(--offwhite);
+      border-color: var(--black);
+  }
+
+  .google-btn svg {
+      width: 18px;
+      height: 18px;
+  }
+
+  /* LOGIN MODAL */
+  .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+  }
+
+  .modal.open {
+      display: flex;
+  }
+
+  .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      cursor: pointer;
+  }
+
+  .modal-content {
+      position: relative;
+      background: var(--white);
+      border: 1px solid var(--border);
+      max-width: 400px;
+      width: 90%;
+      padding: 0;
+      animation: modalSlideIn 0.3s ease;
+  }
+
+  @keyframes modalSlideIn {
+      from {
+          opacity: 0;
+          transform: translateY(-20px);
+      }
+
+      to {
+          opacity: 1;
+          transform: translateY(0);
+      }
+  }
+
+  .modal-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: transparent;
+      border: none;
+      font-size: 1.8rem;
+      color: var(--gray);
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s;
+      z-index: 10;
+  }
+
+  .modal-close:hover {
+      color: var(--black);
+  }
+
+  .modal-card {
+      padding: 2rem;
+      padding-top: 2.5rem;
+  }
+
   @media (max-width: 768px) {
 
       .container,

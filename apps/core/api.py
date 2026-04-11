@@ -24,35 +24,6 @@ def _require_auth(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
-def register(request):
-    data = _json_body(request)
-    email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
-    full_name = (data.get("full_name") or "").strip()
-
-    if not email or not password:
-        return JsonResponse({"detail": "Email and password are required"}, status=400)
-    if User.objects.filter(username=email).exists():
-        return JsonResponse({"detail": "Email already registered"}, status=409)
-
-    user = User.objects.create_user(username=email, email=email, password=password)
-    if full_name:
-        parts = full_name.split(" ", 1)
-        user.first_name = parts[0]
-        if len(parts) > 1:
-            user.last_name = parts[1]
-        user.save(update_fields=["first_name", "last_name"])
-
-    auth_login(request, user)
-    return JsonResponse({
-        "id": user.id,
-        "email": user.email,
-        "full_name": f"{user.first_name} {user.last_name}".strip(),
-    }, status=201)
-
-
-@csrf_exempt
-@require_http_methods(["POST"])
 def login(request):
     data = _json_body(request)
     email = (data.get("email") or "").strip().lower()

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile — SCREENCRAFT</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Barlow:ital,wght@0,300;0,400;0,700;1,300&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/index.css' %}">
+  <link rel="icon" type="image/svg+xml" href="{% static 'img/logo-black.svg' %}">
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo">SCREENCRAFT</div>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/editor/">Editor</a></li>
+    </ul>
+    <button class="nav-cta" onclick="logout()">Logout</button>
+  </div>
+</nav>
+
+<section style="min-height: 100vh; padding: 8rem 0; display: flex; align-items: center; justify-content: center;">
+  <div style="max-width: 600px; width: 100%; padding: 0 2rem;">
+    <div class="auth-card" style="text-align: center;">
+      <div class="eyebrow">Welcome</div>
+      <h1 style="font-family: var(--font-display); font-size: 2.5rem; line-height: 0.9; margin: 0.6rem 0 1rem; letter-spacing: 0.01em;">Profile</h1>
+      
+      <div id="profileInfo" style="text-align: left; margin: 2rem 0;">
+        <div style="padding: 1rem; background: var(--offwhite); border: 1px solid var(--border); margin-bottom: 1rem;">
+          <div style="font-size: 0.72rem; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--gray); margin-bottom: 0.4rem;">Email</div>
+          <div id="userEmail" style="font-size: 1rem; color: var(--black);"></div>
+        </div>
+        <div style="padding: 1rem; background: var(--offwhite); border: 1px solid var(--border);">
+          <div style="font-size: 0.72rem; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--gray); margin-bottom: 0.4rem;">Full Name</div>
+          <div id="userName" style="font-size: 1rem; color: var(--black);"></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <a href="/editor/" class="btn primary">Open Editor</a>
+        <button class="btn secondary" onclick="logout()">Logout</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Fetch current user info
+  async function loadProfile() {
+    try {
+      const response = await fetch('/api/auth/me/', {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        window.location.href = '/';
+        return;
+      }
+      
+      const user = await response.json();
+      document.getElementById('userEmail').textContent = user.email || 'N/A';
+      document.getElementById('userName').textContent = user.full_name || 'User';
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      window.location.href = '/';
+    }
+  }
+
+  // Logout function
+  async function logout() {
+    try {
+      await fetch('/api/auth/logout/', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+    window.location.href = '/';
+  }
+
+  // Load profile on page load
+  loadProfile();
+</script>
+
+</body>
+</html>

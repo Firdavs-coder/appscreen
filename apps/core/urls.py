@@ -3,7 +3,6 @@ from django.urls import path
 from apps.core import api
 
 urlpatterns = [
-    path("auth/register/", api.register),
     path("auth/login/", api.login),
     path("auth/logout/", api.logout),
     path("auth/me/", api.me),
