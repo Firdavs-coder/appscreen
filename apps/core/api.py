@@ -20,6 +20,17 @@ def _require_auth(request):
     if not request.user.is_authenticated:
         return JsonResponse({"detail": "Authentication required"}, status=401)
     return None
+def _project_to_dict(project):
+    return {
+        "id": project.id,
+        "name": project.name,
+        "description": project.description,
+        "payload": project.payload,
+        "created_at": project.created_at.isoformat(),
+        "updated_at": project.updated_at.isoformat(),
+    }
+
+
 
 
 @csrf_exempt
@@ -93,6 +104,37 @@ def projects(request):
         "created_at": project.created_at.isoformat(),
         "updated_at": project.updated_at.isoformat(),
     }, status=201)
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST", "DELETE"])
+def project_detail(request, project_id):
+    auth_error = _require_auth(request)
+    if auth_error:
+        return auth_error
+    
+    try:
+        project = Project.objects.get(id=project_id, user=request.user)
+    except Project.DoesNotExist:
+        return JsonResponse({"detail": "Project not found"}, status=404)
+    
+    if request.method == "GET":
+        return JsonResponse(_project_to_dict(project))
+    
+    elif request.method == "POST":
+        data = _json_body(request)
+        if "name" in data:
+            project.name = data["name"]
+        if "description" in data:
+            project.description = data["description"]
+        if "payload" in data:
+            project.payload = data["payload"]
+        project.save()
+        return JsonResponse(_project_to_dict(project))
+    
+    elif request.method == "DELETE":
+        project.delete()
+        return JsonResponse({}, status=204)
 
 
 @csrf_exempt
