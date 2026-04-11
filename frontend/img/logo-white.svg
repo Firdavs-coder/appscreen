@@ -1,8 +1,0 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Perfect Rounded Square Container -->
-  <rect width="512" height="512" rx="100" fill="white" stroke="black" stroke-width="4"/>
-  <!-- Centered, Symmetrical "S" Shape -->
-  <path d="M412 90H100V241H312V271H100V422H412V271H412V241V90Z" fill="black"/>
-  <!-- Top decorative bar -->
-  <rect x="216" y="55" width="80" height="12" rx="6" fill="black"/>
-</svg>
