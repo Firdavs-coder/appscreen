@@ -73,6 +73,11 @@ function getScreenshotDataUrl(screenshot, lang) {
         }
     }
 
+    // Legacy fallback for screenshots that still store a plain image
+    if (screenshot.image?.src) {
+        return screenshot.image.src;
+    }
+
     return null;
 }
 
@@ -88,6 +93,38 @@ function parseDataUrl(dataUrl) {
         mimeType: match[1],
         base64: match[2]
     };
+}
+
+function arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        binary += String.fromCharCode(...chunk);
+    }
+    return btoa(binary);
+}
+
+async function buildVisionImagePayload(imageRef) {
+    if (!imageRef || typeof imageRef !== 'string') return null;
+
+    const parsed = parseDataUrl(imageRef);
+    if (parsed) return parsed;
+
+    try {
+        const response = await fetch(imageRef);
+        if (!response.ok) return null;
+        const blob = await response.blob();
+        const buffer = await blob.arrayBuffer();
+        return {
+            mimeType: blob.type || 'image/png',
+            base64: arrayBufferToBase64(buffer)
+        };
+    } catch (error) {
+        console.warn('Failed to convert image URL to base64 payload:', error);
+        return null;
+    }
 }
 
 /**
@@ -264,10 +301,15 @@ function showMagicalTitlesDialog() {
 
     // Populate language dropdown
     const langSelect = document.getElementById('magical-titles-language');
-    langSelect.innerHTML = state.projectLanguages.map(lang => {
+    langSelect.innerHTML = state.projectLanguages.map((lang, index) => {
         const langName = languageNames[lang] || lang;
-        return `<option value="${lang}">${langName}</option>`;
+        const flag = languageFlags[lang] || '🏳️';
+        return `<option value="${lang}" data-flag="${flag}" data-label="${langName}" ${index === 0 ? 'selected' : ''}>${flag} ${langName}</option>`;
     }).join('');
+
+    if (typeof refreshCustomSelect === 'function') {
+        refreshCustomSelect(langSelect);
+    }
 
     // Show modal
     document.getElementById('magical-titles-modal').classList.add('visible');
@@ -300,12 +342,12 @@ async function generateMagicalTitles() {
     // Collect images from all screenshots
     const images = [];
     for (const screenshot of state.screenshots) {
-        const dataUrl = getScreenshotDataUrl(screenshot, sourceLang);
-        if (dataUrl) {
-            const parsed = parseDataUrl(dataUrl);
-            if (parsed) {
-                images.push(parsed);
-            }
+        const imageRef = getScreenshotDataUrl(screenshot, sourceLang);
+        if (!imageRef) continue;
+
+        const payload = await buildVisionImagePayload(imageRef);
+        if (payload) {
+            images.push(payload);
         }
     }
 
@@ -879,9 +921,11 @@ async function generateAiLayout() {
 
         const images = [];
         for (const { screenshot } of screenshots) {
-            const dataUrl = getScreenshotDataUrl(screenshot, sourceLang);
-            const parsed = parseDataUrl(dataUrl);
-            if (parsed) images.push(parsed);
+            const imageRef = getScreenshotDataUrl(screenshot, sourceLang);
+            if (!imageRef) continue;
+
+            const payload = await buildVisionImagePayload(imageRef);
+            if (payload) images.push(payload);
         }
 
         const prompt = buildAiLayoutPrompt(analyzedScreens, sourceLang, sourceLangName);

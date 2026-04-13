@@ -1483,15 +1483,78 @@ function setCurrentScreenshotAsDefault() {
     }
 }
 
-// Language flags mapping
-const languageFlags = {
-    'en': '🇺🇸', 'en-gb': '🇬🇧', 'de': '🇩🇪', 'fr': '🇫🇷', 'es': '🇪🇸',
-    'it': '🇮🇹', 'pt': '🇵🇹', 'pt-br': '🇧🇷', 'nl': '🇳🇱', 'ru': '🇷🇺',
-    'ja': '🇯🇵', 'ko': '🇰🇷', 'zh': '🇨🇳', 'zh-tw': '🇹🇼', 'ar': '🇸🇦',
-    'hi': '🇮🇳', 'tr': '🇹🇷', 'pl': '🇵🇱', 'sv': '🇸🇪', 'da': '🇩🇰',
-    'no': '🇳🇴', 'fi': '🇫🇮', 'th': '🇹🇭', 'vi': '🇻🇳', 'id': '🇮🇩',
-    'uk': '🇺🇦'
-};
+// Language catalog used across the editor UI
+const supportedLanguageCatalog = [
+    { code: 'en', name: 'English (US)', flag: '🇺🇸' },
+    { code: 'en-gb', name: 'English (UK)', flag: '🇬🇧' },
+    { code: 'de', name: 'German', flag: '🇩🇪' },
+    { code: 'fr', name: 'French', flag: '🇫🇷' },
+    { code: 'es', name: 'Spanish', flag: '🇪🇸' },
+    { code: 'it', name: 'Italian', flag: '🇮🇹' },
+    { code: 'pt', name: 'Portuguese', flag: '🇵🇹' },
+    { code: 'pt-br', name: 'Portuguese (BR)', flag: '🇧🇷' },
+    { code: 'nl', name: 'Dutch', flag: '🇳🇱' },
+    { code: 'ru', name: 'Russian', flag: '🇷🇺' },
+    { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
+    { code: 'ko', name: 'Korean', flag: '🇰🇷' },
+    { code: 'zh', name: 'Chinese (Simplified)', flag: '🇨🇳' },
+    { code: 'zh-tw', name: 'Chinese (Traditional)', flag: '🇹🇼' },
+    { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
+    { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
+    { code: 'tr', name: 'Turkish', flag: '🇹🇷' },
+    { code: 'pl', name: 'Polish', flag: '🇵🇱' },
+    { code: 'sv', name: 'Swedish', flag: '🇸🇪' },
+    { code: 'da', name: 'Danish', flag: '🇩🇰' },
+    { code: 'no', name: 'Norwegian', flag: '🇳🇴' },
+    { code: 'fi', name: 'Finnish', flag: '🇫🇮' },
+    { code: 'th', name: 'Thai', flag: '🇹🇭' },
+    { code: 'vi', name: 'Vietnamese', flag: '🇻🇳' },
+    { code: 'id', name: 'Indonesian', flag: '🇮🇩' },
+    { code: 'uk', name: 'Ukrainian', flag: '🇺🇦' }
+];
+
+const languageFlags = Object.fromEntries(supportedLanguageCatalog.map((language) => [language.code, language.flag]));
+
+function normalizeProjectLanguages(languages) {
+    const supportedCodes = new Set(supportedLanguageCatalog.map(({ code }) => code));
+
+    let rawLanguages = [];
+    if (Array.isArray(languages)) {
+        rawLanguages = languages;
+    } else if (typeof languages === 'string') {
+        const trimmed = languages.trim();
+        if (trimmed) {
+            if (trimmed.startsWith('[')) {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    rawLanguages = Array.isArray(parsed) ? parsed : [trimmed];
+                } catch {
+                    rawLanguages = [trimmed];
+                }
+            } else {
+                rawLanguages = [trimmed];
+            }
+        }
+    } else if (languages && typeof languages === 'object') {
+        rawLanguages = Object.keys(languages);
+    }
+
+    const normalized = [];
+    const seen = new Set();
+    rawLanguages.forEach((lang) => {
+        if (typeof lang !== 'string') return;
+        const code = lang.toLowerCase().trim();
+        if (!code || seen.has(code) || !supportedCodes.has(code)) return;
+        seen.add(code);
+        normalized.push(code);
+    });
+
+    if (!normalized.includes('en')) {
+        normalized.unshift('en');
+    }
+
+    return normalized.length > 0 ? normalized : ['en'];
+}
 
 // Google Fonts configuration
 const googleFonts = {
@@ -2867,7 +2930,10 @@ function applySerializableStateSnapshot(snapshot) {
         state.customWidth = snapshot.customWidth || 1320;
         state.customHeight = snapshot.customHeight || 2868;
         state.currentLanguage = snapshot.currentLanguage || 'en';
-        state.projectLanguages = snapshot.projectLanguages || ['en'];
+        state.projectLanguages = normalizeProjectLanguages(snapshot.projectLanguages);
+        if (!state.projectLanguages.includes(state.currentLanguage)) {
+            state.currentLanguage = state.projectLanguages[0];
+        }
 
         if (snapshot.defaults) {
             state.defaults = JSON.parse(JSON.stringify(snapshot.defaults));
@@ -3275,7 +3341,10 @@ async function loadState() {
 
                     // Load global language settings
                     state.currentLanguage = parsed.currentLanguage || 'en';
-                    state.projectLanguages = parsed.projectLanguages || ['en'];
+                    state.projectLanguages = normalizeProjectLanguages(parsed.projectLanguages);
+                    if (!state.projectLanguages.includes(state.currentLanguage)) {
+                        state.currentLanguage = state.projectLanguages[0];
+                    }
 
                     // Load defaults (new format) or use migrated settings
                     if (parsed.defaults) {
@@ -5782,15 +5851,28 @@ function setupEventListeners() {
         translateAllText();
     });
 
-    // Magical Titles button (in header)
-    document.getElementById('magical-titles-btn').addEventListener('click', () => {
+    // Unified AI button (in header)
+    document.getElementById('ai-generate-btn').addEventListener('click', () => {
         dismissMagicalTitlesTooltip();
-        showMagicalTitlesDialog();
+        document.getElementById('ai-action-modal').classList.add('visible');
     });
 
-    // AI Generate button (in header)
-    document.getElementById('ai-generate-btn').addEventListener('click', () => {
+    // AI action chooser modal events
+    document.getElementById('ai-action-cancel').addEventListener('click', () => {
+        document.getElementById('ai-action-modal').classList.remove('visible');
+    });
+    document.getElementById('ai-action-layout').addEventListener('click', () => {
+        document.getElementById('ai-action-modal').classList.remove('visible');
         showAiGenerateDialog();
+    });
+    document.getElementById('ai-action-titles').addEventListener('click', () => {
+        document.getElementById('ai-action-modal').classList.remove('visible');
+        showMagicalTitlesDialog();
+    });
+    document.getElementById('ai-action-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'ai-action-modal') {
+            document.getElementById('ai-action-modal').classList.remove('visible');
+        }
     });
 
     // Magical Titles modal events
@@ -6807,6 +6889,10 @@ function switchGlobalLanguage(lang) {
 // Languages modal functions
 function openLanguagesModal() {
     document.getElementById('language-menu').classList.remove('visible');
+    state.projectLanguages = normalizeProjectLanguages(state.projectLanguages);
+    if (!state.projectLanguages.includes(state.currentLanguage)) {
+        state.currentLanguage = state.projectLanguages[0];
+    }
     document.getElementById('languages-modal').classList.add('visible');
     updateLanguagesList();
     updateAddLanguageSelect();
@@ -6817,6 +6903,7 @@ function closeLanguagesModal() {
 }
 
 function updateLanguagesList() {
+    state.projectLanguages = normalizeProjectLanguages(state.projectLanguages);
     const container = document.getElementById('languages-list');
     container.innerHTML = '';
 
@@ -6850,20 +6937,33 @@ function updateLanguagesList() {
 }
 
 function updateAddLanguageSelect() {
+    state.projectLanguages = normalizeProjectLanguages(state.projectLanguages);
     const select = document.getElementById('add-language-select');
+    if (!select) return;
+
     select.innerHTML = '<option value="">Add a language...</option>';
 
     // Add all available languages that aren't already in the project
-    Object.keys(languageNames).forEach(lang => {
-        if (!state.projectLanguages.includes(lang)) {
-            const flag = languageFlags[lang] || '🏳️';
-            const name = languageNames[lang];
-            const option = document.createElement('option');
-            option.value = lang;
-            option.textContent = `${flag} ${name}`;
-            select.appendChild(option);
-        }
+    supportedLanguageCatalog.forEach(({ code, name, flag }) => {
+        if (state.projectLanguages.includes(code)) return;
+
+        const option = document.createElement('option');
+        option.value = code;
+        option.textContent = `${flag} ${name}`;
+        option.dataset.flag = flag;
+        option.dataset.label = name;
+        select.appendChild(option);
     });
+
+    if (select.options.length === 1) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.disabled = true;
+        option.textContent = 'All supported languages are already added';
+        select.appendChild(option);
+    }
+
+    refreshCustomSelect(select);
 }
 
 function addProjectLanguage(lang) {
@@ -7050,15 +7150,7 @@ function updateSubheadlineLanguageUI() {
 // Translate modal functions
 let currentTranslateTarget = null;
 
-const languageNames = {
-    'en': 'English (US)', 'en-gb': 'English (UK)', 'de': 'German', 'fr': 'French',
-    'es': 'Spanish', 'it': 'Italian', 'pt': 'Portuguese', 'pt-br': 'Portuguese (BR)',
-    'nl': 'Dutch', 'ru': 'Russian', 'ja': 'Japanese', 'ko': 'Korean',
-    'zh': 'Chinese (Simplified)', 'zh-tw': 'Chinese (Traditional)', 'ar': 'Arabic',
-    'hi': 'Hindi', 'tr': 'Turkish', 'pl': 'Polish', 'sv': 'Swedish',
-    'da': 'Danish', 'no': 'Norwegian', 'fi': 'Finnish', 'th': 'Thai',
-    'vi': 'Vietnamese', 'id': 'Indonesian', 'uk': 'Ukrainian'
-};
+const languageNames = Object.fromEntries(supportedLanguageCatalog.map((language) => [language.code, language.name]));
 
 function openTranslateModal(target) {
     currentTranslateTarget = target;
@@ -7087,9 +7179,13 @@ function openTranslateModal(target) {
         const option = document.createElement('option');
         option.value = lang;
         option.textContent = `${languageFlags[lang]} ${languageNames[lang] || lang}`;
+        option.dataset.flag = languageFlags[lang] || '';
+        option.dataset.label = languageNames[lang] || lang;
         if (index === 0) option.selected = true;
         sourceSelect.appendChild(option);
     });
+
+    refreshCustomSelect(sourceSelect);
 
     // Update source preview
     updateTranslateSourcePreview();
@@ -7408,7 +7504,7 @@ function showTranslateConfirmDialog(providerName) {
             const flag = languageFlags[lang] || '🏳️';
             const name = languageNames[lang] || lang.toUpperCase();
             const selected = lang === defaultLang ? 'selected' : '';
-            return `<option value="${lang}" ${selected}>${flag} ${name}</option>`;
+            return `<option value="${lang}" data-flag="${flag}" data-label="${name}" ${selected}>${flag} ${name}</option>`;
         }).join('');
 
         // Count texts for each language
@@ -7436,30 +7532,30 @@ function showTranslateConfirmDialog(providerName) {
                 <p class="modal-message" style="margin-bottom: 16px;">Translate headlines and subheadlines from one language to all other project languages.</p>
 
                 <div style="margin-bottom: 16px;">
-                    <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Source Language</label>
-                    <select id="translate-source-lang" style="width: 100%; padding: 10px 12px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-size: 14px; cursor: pointer;">
+                    <label style="display: block; font-size: 12px; color: #555555; margin-bottom: 6px;">Source Language</label>
+                    <select id="translate-source-lang" style="width: 100%; padding: 10px 12px; background: #ffffff; border: 1px solid #111111; border-radius: 0px; color: #111111; font-size: 14px; cursor: pointer;">
                         ${languageOptions}
                     </select>
                 </div>
 
-                <div style="background: var(--bg-tertiary); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                <div style="background: #f6f6f6; border: 1px solid #111111; border-radius: 0px; padding: 12px; margin-bottom: 16px;">
                     <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
-                        <span style="color: var(--text-secondary);">Texts to translate:</span>
-                        <span id="translate-text-count" style="color: var(--text-primary); font-weight: 500;">${initialCount}</span>
+                        <span style="color: #555555;">Texts to translate:</span>
+                        <span id="translate-text-count" style="color: #111111; font-weight: 500;">${initialCount}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
-                        <span style="color: var(--text-secondary);">Target languages:</span>
-                        <span style="color: var(--text-primary); font-weight: 500;">${targetCount}</span>
+                        <span style="color: #555555;">Target languages:</span>
+                        <span style="color: #111111; font-weight: 500;">${targetCount}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; font-size: 13px;">
-                        <span style="color: var(--text-secondary);">Provider:</span>
-                        <span style="color: var(--text-primary); font-weight: 500;">${providerName}</span>
+                        <span style="color: #555555;">Provider:</span>
+                        <span style="color: #111111; font-weight: 500;">${providerName}</span>
                     </div>
                 </div>
 
                 <div class="modal-buttons">
                     <button class="modal-btn modal-btn-cancel" id="translate-cancel">Cancel</button>
-                    <button class="modal-btn modal-btn-confirm" id="translate-confirm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">Translate</button>
+                    <button class="modal-btn modal-btn-confirm" id="translate-confirm" style="background: #111111; color: #ffffff;">Translate</button>
                 </div>
             </div>
         `;
@@ -7470,6 +7566,8 @@ function showTranslateConfirmDialog(providerName) {
         const countEl = document.getElementById('translate-text-count');
         const confirmBtn = document.getElementById('translate-confirm');
         const cancelBtn = document.getElementById('translate-cancel');
+
+        initializeCustomDropdowns();
 
         // Update count when language changes
         select.addEventListener('change', () => {
@@ -10682,6 +10780,15 @@ function initializeCustomDropdowns() {
 
         const selectedOption = options[select.selectedIndex] || options[0];
         const getOptionText = (option) => option?.text ?? option?.label ?? '';
+        const getOptionFlag = (option) => option?.dataset?.flag || '';
+        const getOptionLabel = (option) => option?.dataset?.label || option?.textContent || '';
+        const renderOptionContent = (option) => {
+            const flag = getOptionFlag(option);
+            const label = getOptionLabel(option);
+            return flag
+                ? `<span class="custom-select-option-flag">${flag}</span><span class="custom-select-option-label">${label}</span>`
+                : label;
+        };
 
         // Create wrapper
         const wrapper = document.createElement('div');
@@ -10694,7 +10801,7 @@ function initializeCustomDropdowns() {
         
         const triggerText = document.createElement('span');
         triggerText.className = 'custom-select-trigger-text';
-        triggerText.textContent = getOptionText(selectedOption);
+        triggerText.innerHTML = renderOptionContent(selectedOption);
         
         const triggerArrow = document.createElement('span');
         triggerArrow.className = 'custom-select-trigger-arrow';
@@ -10718,9 +10825,9 @@ function initializeCustomDropdowns() {
             // Support custom data attribute for subtitle
             const subtitle = option.dataset?.subtitle || '';
             if (subtitle) {
-                optionDiv.innerHTML = `<div class="custom-select-option-main">${getOptionText(option)}</div><div class="custom-select-option-sub">${subtitle}</div>`;
+                optionDiv.innerHTML = `<div class="custom-select-option-main">${renderOptionContent(option)}</div><div class="custom-select-option-sub">${subtitle}</div>`;
             } else {
-                optionDiv.innerHTML = getOptionText(option);
+                optionDiv.innerHTML = renderOptionContent(option);
             }
             
             optionDiv.dataset.value = option.value;
@@ -10731,9 +10838,9 @@ function initializeCustomDropdowns() {
                 
                 // Update trigger text with subtitle if available
                 if (subtitle) {
-                    triggerText.innerHTML = `<div><div>${getOptionText(option)}</div><div style="font-size: 12px; color: var(--text-secondary);">${subtitle}</div></div>`;
+                    triggerText.innerHTML = `<div><div>${renderOptionContent(option)}</div><div style="font-size: 12px; color: var(--text-secondary);">${subtitle}</div></div>`;
                 } else {
-                    triggerText.textContent = getOptionText(option);
+                    triggerText.innerHTML = renderOptionContent(option);
                 }
                 
                 // Update selected state
@@ -10790,6 +10897,61 @@ function initializeCustomDropdowns() {
                 wrapper.classList.remove('open');
             }
         });
+    });
+}
+
+function refreshCustomSelect(select) {
+    if (!select) return;
+
+    const wrapper = select.parentElement;
+    if (!wrapper || !wrapper.classList.contains('custom-select')) {
+        initializeCustomDropdowns();
+        return;
+    }
+
+    const triggerText = wrapper.querySelector('.custom-select-trigger-text');
+    const dropdown = wrapper.querySelector('.custom-select-dropdown');
+    if (!triggerText || !dropdown) return;
+
+    const options = Array.from(select.options || []);
+    const selectedOption = options[select.selectedIndex] || options[0];
+    const getOptionText = (option) => option?.text ?? option?.label ?? '';
+    const getOptionFlag = (option) => option?.dataset?.flag || '';
+    const getOptionLabel = (option) => option?.dataset?.label || option?.textContent || '';
+    const renderOptionContent = (option) => {
+        const flag = getOptionFlag(option);
+        const label = getOptionLabel(option);
+        return flag
+            ? `<span class="custom-select-option-flag">${flag}</span><span class="custom-select-option-label">${label}</span>`
+            : label;
+    };
+
+    triggerText.innerHTML = renderOptionContent(selectedOption);
+    dropdown.innerHTML = '';
+
+    options.forEach(option => {
+        const optionDiv = document.createElement('div');
+        optionDiv.className = 'custom-select-option';
+        if (option.selected) {
+            optionDiv.classList.add('selected');
+        }
+
+        const subtitle = option.dataset?.subtitle || '';
+        if (subtitle) {
+            optionDiv.innerHTML = `<div class="custom-select-option-main">${renderOptionContent(option)}</div><div class="custom-select-option-sub">${subtitle}</div>`;
+        } else {
+            optionDiv.innerHTML = renderOptionContent(option);
+        }
+
+        optionDiv.dataset.value = option.value;
+        optionDiv.addEventListener('click', () => {
+            select.value = option.value;
+            refreshCustomSelect(select);
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            wrapper.classList.remove('open');
+        });
+
+        dropdown.appendChild(optionDiv);
     });
 }
 

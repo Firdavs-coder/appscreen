@@ -16,7 +16,7 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="img/logo-black.svg">
 
-    <link rel="stylesheet" href="css/editor.css">
+    <link rel="stylesheet" href="css/editor.css?v=20260413-1">
 
     <!-- Detect Tauri and add class for native styling -->
     <script>
@@ -148,14 +148,7 @@
                                     </button>
                                 </div>
                             </div>
-                            <button class="settings-btn" id="magical-titles-btn" title="Magical Titles - AI-generated headlines">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                    <path d="M12 2l1.4 4.2L18 7.6l-4.6 1.4L12 13l-1.4-4L6 7.6l4.6-1.4L12 2z"/>
-                                    <path d="M19 12l.8 2.4L22 15l-2.2.6L19 18l-.8-2.4L16 15l2.2-.6L19 12z"/>
-                                    <path d="M5 13l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3z"/>
-                                </svg>
-                            </button>
-                            <button class="settings-btn" id="ai-generate-btn" title="AI Generate Layout - backgrounds, titles, and popouts">
+                            <button class="settings-btn" id="ai-generate-btn" title="AI Assistant - Generate Layout or Titles">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                     <path d="M4 4h7v7H4z"/>
                                     <path d="M13 4h7v7h-7z"/>
@@ -1686,7 +1679,53 @@
             </div>
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-cancel" id="magical-titles-cancel">Cancel</button>
-                <button class="modal-btn modal-btn-confirm" id="magical-titles-confirm" style="background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%);">Generate Titles</button>
+                <button class="modal-btn modal-btn-confirm" id="magical-titles-confirm" style="background: black;">Generate Titles</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Action Chooser Modal -->
+    <div class="modal-overlay" id="ai-action-modal">
+        <div class="modal ai-action-modal">
+            <div class="modal-icon ai-action-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M4 4h7v7H4z"/>
+                    <path d="M13 4h7v7h-7z"/>
+                    <path d="M4 13h7v7H4z"/>
+                    <path d="M15 15h5v5h-5z"/>
+                </svg>
+            </div>
+            <h3 class="modal-title">AI Assistant</h3>
+            <p class="modal-message ai-action-message">Choose a generation mode for your screenshots.</p>
+            <div class="ai-action-list">
+                <button class="ai-action-card" id="ai-action-layout" type="button">
+                    <span class="ai-action-card-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 4h7v7H4z"/>
+                            <path d="M13 4h7v7h-7z"/>
+                            <path d="M4 13h7v7H4z"/>
+                            <path d="M15 15h5v5h-5z"/>
+                        </svg>
+                    </span>
+                    <span class="ai-action-card-copy">
+                        <span class="ai-action-card-title">Generate Full Layout</span>
+                        <span class="ai-action-card-subtitle">Backgrounds, text, device placement, and popouts</span>
+                    </span>
+                </button>
+                <button class="ai-action-card" id="ai-action-titles" type="button">
+                    <span class="ai-action-card-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2l1.4 4.2L18 7.6l-4.6 1.4L12 13l-1.4-4L6 7.6l4.6-1.4L12 2z"/>
+                        </svg>
+                    </span>
+                    <span class="ai-action-card-copy">
+                        <span class="ai-action-card-title">Generate Titles Only</span>
+                        <span class="ai-action-card-subtitle">Marketing headlines and subheadlines</span>
+                    </span>
+                </button>
+            </div>
+            <div class="modal-buttons ai-action-footer">
+                <button class="modal-btn modal-btn-cancel" id="ai-action-cancel">Cancel</button>
             </div>
         </div>
     </div>
@@ -1707,7 +1746,7 @@
             <p class="modal-message" style="margin-top: 8px; font-size: 12px; color: var(--text-tertiary);">Screenshots: <span id="ai-generate-count">0</span> · Provider: <span id="ai-generate-provider">-</span></p>
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-cancel" id="ai-generate-cancel">Cancel</button>
-                <button class="modal-btn modal-btn-confirm" id="ai-generate-confirm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">Generate Layout</button>
+                <button class="modal-btn modal-btn-confirm" id="ai-generate-confirm" style="background: black;">Generate Layout</button>
             </div>
         </div>
     </div>
@@ -1924,14 +1963,15 @@
             </div>
             <h3 class="modal-title">App Preview Generator</h3>
             <p class="modal-message" style="margin-bottom: 12px; text-align: left;">
-                • <strong>Project Panel (left):</strong> Create/rename/delete projects, add/reorder screenshots, and switch language.<br>
-                • <strong>Canvas (center):</strong> Live preview with right-click menu (manage, replace, download, duplicate, remove).<br>
-                • <strong>Settings Panel (right):</strong> Background, Device, Text, Elements, Popouts controls.<br>
-                • <strong>Background Tools:</strong> Gradient presets/stops, solid color, image + blur/overlay, optional noise.<br>
-                • <strong>Device Tools:</strong> 2D/3D modes, position presets, corner radius, shadow, border.<br>
-                • <strong>Text Tools:</strong> Headline/subheadline, font picker, style controls, per-language layout.<br>
-                • <strong>Language & AI:</strong> Multi-language text and AI translation (Anthropic/OpenAI/Google in Settings).<br>
-                • <strong>Export:</strong> Select output size, export all screenshots as ZIP.
+                • <strong>Projects (left panel):</strong> Create, rename, and delete projects. Add screenshots, reorder them, and switch languages.<br>
+                • <strong>Preview (center canvas):</strong> See changes live. Right-click a screen to manage translations, replace, download, duplicate, or remove it.<br>
+                • <strong>Editor (right panel):</strong> Fine-tune background, device frame, text, elements, and popouts.<br>
+                • <strong>Background options:</strong> Use gradients (with presets/stops), solid colors, or images with blur, overlay, and optional noise.<br>
+                • <strong>Device options:</strong> Choose 2D/3D mode, adjust position, corner radius, shadow, and border.<br>
+                • <strong>Text options:</strong> Edit headline/subheadline, pick fonts, apply styles, and customize layout per language.<br>
+                • <strong>Languages & AI:</strong> Manage multilingual text and translate with AI providers (Anthropic, OpenAI, Google) from Settings.<br>
+                • <strong>Keyboard shortcuts:</strong> Undo <code>Ctrl+Z</code> / <code>⌘Z</code>. Redo <code>Ctrl+Y</code> or <code>Ctrl+Shift+Z</code> / <code>⌘Shift+Z</code>.<br>
+                • <strong>Export:</strong> Pick an output size and export the full set as a ZIP.
             </p>
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-confirm" id="about-modal-close" style="background: var(--accent);">Close</button>
@@ -2105,11 +2145,11 @@
         </div>
     </div>
 
-    <script src="js/llm.js"></script>
-    <script src="js/language-utils.js"></script>
-    <script src="js/magical-titles.js"></script>
-    <script src="js/lucide-icons.js"></script>
-    <script src="js/three-renderer.js"></script>
-    <script src="js/editor.js"></script>
+    <script src="js/llm.js?v=20260413-1"></script>
+    <script src="js/language-utils.js?v=20260413-1"></script>
+    <script src="js/magical-titles.js?v=20260413-1"></script>
+    <script src="js/lucide-icons.js?v=20260413-1"></script>
+    <script src="js/three-renderer.js?v=20260413-1"></script>
+    <script src="js/editor.js?v=20260413-1"></script>
 </body>
 </html>
