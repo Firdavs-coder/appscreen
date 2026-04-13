@@ -72,6 +72,11 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
+    <svg aria-hidden="true" focusable="false" width="0" height="0" style="position: absolute; width: 0; height: 0; overflow: hidden;">
+        <symbol id="ai-assistant-icon" viewBox="0 0 24 24">
+            <path d="M12 2.8l2.4 6.4 6.6.8-5 4.3 1.5 6.4L12 17.3 6.5 20.7 8 14.3 3 10l6.6-.8L12 2.8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </symbol>
+    </svg>
     <div class="app-container">
         <!-- Left Sidebar - Screenshots -->
         <div class="sidebar">
@@ -149,11 +154,8 @@
                                 </div>
                             </div>
                             <button class="settings-btn" id="ai-generate-btn" title="AI Assistant - Generate Layout or Titles">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                    <path d="M4 4h7v7H4z"/>
-                                    <path d="M13 4h7v7h-7z"/>
-                                    <path d="M4 13h7v7H4z"/>
-                                    <path d="M15 15h5v5h-5z"/>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <use href="#ai-assistant-icon"></use>
                                 </svg>
                             </button>
                             <button class="settings-btn" id="about-btn" title="About">
@@ -1688,11 +1690,8 @@
     <div class="modal-overlay" id="ai-action-modal">
         <div class="modal ai-action-modal">
             <div class="modal-icon ai-action-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path d="M4 4h7v7H4z"/>
-                    <path d="M13 4h7v7h-7z"/>
-                    <path d="M4 13h7v7H4z"/>
-                    <path d="M15 15h5v5h-5z"/>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <use href="#ai-assistant-icon"></use>
                 </svg>
             </div>
             <h3 class="modal-title">AI Assistant</h3>
@@ -1700,11 +1699,9 @@
             <div class="ai-action-list">
                 <button class="ai-action-card" id="ai-action-layout" type="button">
                     <span class="ai-action-card-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M4 4h7v7H4z"/>
-                            <path d="M13 4h7v7h-7z"/>
-                            <path d="M4 13h7v7H4z"/>
-                            <path d="M15 15h5v5h-5z"/>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 3l1.45 4.2L15 8.65l-4.1 1.45L9 14l-1.9-3.9L3 8.65l4.55-1.45L9 3z"/>
+                            <path d="M17 12l.9 2.1L20 15l-2.1.9L17 18l-.9-2.1L14 15l2.1-.9L17 12z"/>
                         </svg>
                     </span>
                     <span class="ai-action-card-copy">
