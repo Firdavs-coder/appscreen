@@ -6,6 +6,7 @@ const state = {
     outputDevice: 'iphone-6.9',
     currentLanguage: 'en', // Global current language for all text
     projectLanguages: ['en'], // Languages available in this project
+    aiAnalysisCache: {},
     customWidth: 1290,
     customHeight: 2796,
     // Default settings applied to new screenshots
@@ -1433,6 +1434,90 @@ function setupCustomTooltips() {
 function formatValue(num) {
     const rounded = Math.round(num * 10) / 10;
     return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1);
+}
+
+function normalizeGradientColor(color, fallback = '#667eea') {
+    if (typeof color !== 'string') return fallback;
+    const value = color.trim();
+    if (/^#[0-9A-Fa-f]{6}$/.test(value)) return value;
+    const shortMatch = value.match(/^#([0-9A-Fa-f]{3})$/);
+    if (!shortMatch) return fallback;
+    const expanded = shortMatch[1].split('').map(ch => ch + ch).join('');
+    return `#${expanded}`;
+}
+
+function normalizeGradientStopsForPreset(stops) {
+    const fallback = [
+        { color: '#667eea', position: 0 },
+        { color: '#764ba2', position: 100 }
+    ];
+    if (!Array.isArray(stops) || stops.length < 2) return fallback;
+
+    const normalized = stops
+        .map((stop, index) => ({
+            color: normalizeGradientColor(stop?.color, fallback[Math.min(index, fallback.length - 1)].color),
+            position: Math.max(0, Math.min(100, Number(stop?.position ?? (index === 0 ? 0 : 100))))
+        }))
+        .sort((a, b) => a.position - b.position);
+
+    normalized[0].position = 0;
+    normalized[normalized.length - 1].position = 100;
+    return normalized;
+}
+
+function gradientToCssString(gradient) {
+    const angle = Math.max(0, Math.min(360, Math.round(Number(gradient?.angle ?? 135))));
+    const stops = normalizeGradientStopsForPreset(gradient?.stops);
+    return `linear-gradient(${angle}deg, ${stops.map(stop => `${stop.color} ${Math.round(stop.position)}%`).join(', ')})`;
+}
+
+function gradientPresetKey(gradientCss) {
+    return String(gradientCss || '').replace(/\s+/g, '').toLowerCase();
+}
+
+function collectUsedGradientCssList() {
+    const gradients = [];
+
+    if (state.defaults?.background?.type === 'gradient' && state.defaults.background.gradient) {
+        gradients.push(gradientToCssString(state.defaults.background.gradient));
+    }
+
+    state.screenshots.forEach((screenshot) => {
+        if (screenshot?.background?.type === 'gradient' && screenshot.background.gradient) {
+            gradients.push(gradientToCssString(screenshot.background.gradient));
+        }
+    });
+
+    return gradients;
+}
+
+function updateUsedGradientPresets() {
+    const presetContainer = document.getElementById('gradient-presets');
+    if (!presetContainer) return;
+
+    presetContainer.querySelectorAll('.preset-swatch[data-used-gradient="true"]').forEach(node => node.remove());
+
+    const existingKeys = new Set(
+        Array.from(presetContainer.querySelectorAll('.preset-swatch')).map(node => gradientPresetKey(node.dataset.gradient))
+    );
+
+    const addedKeys = new Set();
+    const usedGradients = collectUsedGradientCssList();
+
+    usedGradients.forEach((gradientCss) => {
+        const key = gradientPresetKey(gradientCss);
+        if (!key || existingKeys.has(key) || addedKeys.has(key)) return;
+
+        const swatch = document.createElement('div');
+        swatch.className = 'preset-swatch';
+        swatch.dataset.usedGradient = 'true';
+        swatch.dataset.gradient = gradientCss;
+        swatch.title = 'Used Gradient';
+        swatch.style.background = gradientCss;
+        presetContainer.prepend(swatch);
+
+        addedKeys.add(key);
+    });
 }
 
 function setBackground(key, value) {
@@ -2896,6 +2981,7 @@ function buildSerializableStateSnapshot() {
         customHeight: state.customHeight,
         currentLanguage: state.currentLanguage,
         projectLanguages: state.projectLanguages,
+        aiAnalysisCache: state.aiAnalysisCache,
         defaults: state.defaults
     };
 }
@@ -2931,6 +3017,9 @@ function applySerializableStateSnapshot(snapshot) {
         state.customHeight = snapshot.customHeight || 2868;
         state.currentLanguage = snapshot.currentLanguage || 'en';
         state.projectLanguages = normalizeProjectLanguages(snapshot.projectLanguages);
+        state.aiAnalysisCache = snapshot.aiAnalysisCache
+            ? JSON.parse(JSON.stringify(snapshot.aiAnalysisCache))
+            : (state.aiAnalysisCache || {});
         if (!state.projectLanguages.includes(state.currentLanguage)) {
             state.currentLanguage = state.projectLanguages[0];
         }
@@ -3405,6 +3494,7 @@ function resetStateToDefaults() {
     state.customHeight = 2868;
     state.currentLanguage = 'en';
     state.projectLanguages = ['en'];
+    state.aiAnalysisCache = {};
     state.defaults = {
         background: {
             type: 'gradient',
@@ -3750,6 +3840,7 @@ function syncUIWithState() {
     // Gradient
     document.getElementById('gradient-angle').value = bg.gradient.angle;
     document.getElementById('gradient-angle-value').textContent = formatValue(bg.gradient.angle) + '°';
+    updateUsedGradientPresets();
     updateGradientStopsUI();
 
     // Solid color
@@ -5865,6 +5956,10 @@ function setupEventListeners() {
         document.getElementById('ai-action-modal').classList.remove('visible');
         showAiGenerateDialog();
     });
+    document.getElementById('ai-action-background').addEventListener('click', () => {
+        document.getElementById('ai-action-modal').classList.remove('visible');
+        generateAiBackground();
+    });
     document.getElementById('ai-action-titles').addEventListener('click', () => {
         document.getElementById('ai-action-modal').classList.remove('visible');
         showMagicalTitlesDialog();
@@ -6308,19 +6403,22 @@ function setupEventListeners() {
         });
     }
 
-    // Gradient presets
-    document.querySelectorAll('.preset-swatch').forEach(swatch => {
-        swatch.addEventListener('click', () => {
+    // Gradient presets (supports static + dynamic swatches)
+    const gradientPresetsContainer = document.getElementById('gradient-presets');
+    if (gradientPresetsContainer) {
+        gradientPresetsContainer.addEventListener('click', (event) => {
+            const swatch = event.target.closest('.preset-swatch');
+            if (!swatch || !gradientPresetsContainer.contains(swatch)) return;
+
             document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('selected'));
             swatch.classList.add('selected');
 
-            // Parse gradient from preset
-            const gradientStr = swatch.dataset.gradient;
+            const gradientStr = swatch.dataset.gradient || '';
             const angleMatch = gradientStr.match(/(\d+)deg/);
             const colorMatches = gradientStr.matchAll(/(#[a-fA-F0-9]{6})\s+(\d+)%/g);
 
             if (angleMatch) {
-                const angle = parseInt(angleMatch[1]);
+                const angle = parseInt(angleMatch[1], 10);
                 setBackground('gradient.angle', angle);
                 document.getElementById('gradient-angle').value = angle;
                 document.getElementById('gradient-angle-value').textContent = formatValue(angle) + '°';
@@ -6328,16 +6426,19 @@ function setupEventListeners() {
 
             const stops = [];
             for (const match of colorMatches) {
-                stops.push({ color: match[1], position: parseInt(match[2]) });
+                stops.push({ color: match[1], position: parseInt(match[2], 10) });
             }
             if (stops.length >= 2) {
                 setBackground('gradient.stops', stops);
                 updateGradientStopsUI();
             }
 
+            updateUsedGradientPresets();
             updateCanvas();
         });
-    });
+
+        updateUsedGradientPresets();
+    }
 
     // Gradient angle
     document.getElementById('gradient-angle').addEventListener('input', (e) => {
@@ -6345,6 +6446,7 @@ function setupEventListeners() {
         document.getElementById('gradient-angle-value').textContent = formatValue(e.target.value) + '°';
         // Deselect preset when manually changing angle
         document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('selected'));
+        updateUsedGradientPresets();
         updateCanvas();
     });
 
@@ -6359,6 +6461,7 @@ function setupEventListeners() {
         // Deselect preset when adding a stop
         document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('selected'));
         updateGradientStopsUI();
+        updateUsedGradientPresets();
         updateCanvas();
     });
 
@@ -9026,6 +9129,7 @@ function updateGradientStopsUI() {
             currentBg.gradient.stops[index].color = e.target.value;
             // Deselect preset when manually changing colors
             document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('selected'));
+            updateUsedGradientPresets();
             updateCanvas();
         });
 
@@ -9034,6 +9138,7 @@ function updateGradientStopsUI() {
             currentBg.gradient.stops[index].position = parseInt(e.target.value);
             // Deselect preset when manually changing positions
             document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('selected'));
+            updateUsedGradientPresets();
             updateCanvas();
         });
 
@@ -9045,6 +9150,7 @@ function updateGradientStopsUI() {
                 // Deselect preset when deleting a stop
                 document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('selected'));
                 updateGradientStopsUI();
+                updateUsedGradientPresets();
                 updateCanvas();
             });
         }

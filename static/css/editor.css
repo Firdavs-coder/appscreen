@@ -1706,9 +1706,9 @@ input[type="range"]::-webkit-slider-thumb {
 
 .ai-action-card {
     display: grid;
-    grid-template-columns: 34px 1fr auto;
+    grid-template-columns: 1fr;
     align-items: center;
-    gap: 10px;
+    gap: 0;
     width: 100%;
     padding: 11px 12px;
     border: 1px solid rgba(17, 17, 17, 0.14);
@@ -1752,18 +1752,28 @@ input[type="range"]::-webkit-slider-thumb {
     display: flex;
     flex-direction: column;
     gap: 3px;
+    width: 100%;
+    min-width: 0;
 }
 
 .ai-action-card-title {
+    display: block;
     font-size: 14px;
     font-weight: 600;
     line-height: 1.2;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: normal;
 }
 
 .ai-action-card-subtitle {
+    display: block;
     font-size: 11px;
     color: #666666;
     line-height: 1.35;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: normal;
 }
 
 .ai-action-card-arrow {

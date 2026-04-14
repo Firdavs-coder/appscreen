@@ -127,6 +127,207 @@ async function buildVisionImagePayload(imageRef) {
     }
 }
 
+function ensureAiAnalysisCache() {
+    if (!state.aiAnalysisCache || typeof state.aiAnalysisCache !== 'object') {
+        state.aiAnalysisCache = {};
+    }
+    return state.aiAnalysisCache;
+}
+
+async function buildAiCacheKey(payload) {
+    const serialized = JSON.stringify(payload);
+
+    if (window.crypto?.subtle) {
+        const bytes = new TextEncoder().encode(serialized);
+        const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+        return Array.from(new Uint8Array(digest))
+            .map(value => value.toString(16).padStart(2, '0'))
+            .join('');
+    }
+
+    let hash = 0;
+    for (let index = 0; index < serialized.length; index++) {
+        hash = ((hash << 5) - hash) + serialized.charCodeAt(index);
+        hash |= 0;
+    }
+    return `fallback-${Math.abs(hash).toString(16)}`;
+}
+
+async function generateVisionResponse(provider, apiKey, images, prompt) {
+    if (provider === 'anthropic') {
+        return generateTitlesWithAnthropic(apiKey, images, prompt);
+    }
+    if (provider === 'openai') {
+        return generateTitlesWithOpenAI(apiKey, images, prompt);
+    }
+    if (provider === 'google') {
+        return generateTitlesWithGoogle(apiKey, images, prompt);
+    }
+
+    throw new Error(`Unknown provider: ${provider}`);
+}
+
+function extractAiJson(responseText) {
+    const cleaned = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    const jsonText = jsonMatch ? jsonMatch[0] : cleaned;
+    return JSON.parse(jsonText);
+}
+
+async function collectScreenshotAnalysisInputs(sourceLang) {
+    const inputs = [];
+
+    for (let index = 0; index < state.screenshots.length; index++) {
+        const screenshot = state.screenshots[index];
+        const imageRef = getScreenshotDataUrl(screenshot, sourceLang);
+        if (!imageRef) continue;
+
+        const [image, palette] = await Promise.all([
+            loadImageFromDataUrl(imageRef),
+            extractDominantColorsFromDataUrl(imageRef, 4)
+        ]);
+
+        inputs.push({
+            index,
+            imageRef,
+            palette,
+            ratio: image.width && image.height ? (image.width / image.height) : null
+        });
+    }
+
+    return inputs;
+}
+
+function buildScreenshotAnalysisPrompt(inputCount, sourceLang, sourceLangName) {
+    return `You are an expert mobile app screenshot analyst.
+Inspect the screenshots and return concise structured analysis for each one.
+
+Rules:
+- Return ONLY valid JSON.
+- Return exactly ${inputCount} entries in the "screens" array.
+- Preserve the original screenshot index in each entry.
+- Keep the analysis factual, concise, and specific to what is visible.
+- Write the response in English.
+
+Schema:
+{
+  "screens": [
+    {
+      "index": 0,
+      "summary": "Short description of what the screen shows",
+      "purpose": "Short phrase describing the screen goal",
+      "keyFeatures": ["Feature 1", "Feature 2"],
+      "mood": "Short mood phrase",
+      "visualFocus": "What the viewer should notice first"
+    }
+  ]
+}
+
+Context: the screenshots belong to an app being localized for ${sourceLangName} (${sourceLang}).`;
+}
+
+function buildMagicalTitlesPrompt(analysisScreens, sourceLang, langName) {
+    const screenSummaries = analysisScreens.map((screen) => {
+        const features = Array.isArray(screen.keyFeatures) && screen.keyFeatures.length
+            ? screen.keyFeatures.join(', ')
+            : 'No key features detected';
+        return `Screenshot ${screen.index + 1}: ${screen.summary || 'No summary available'} | Purpose: ${screen.purpose || 'Unknown'} | Features: ${features} | Mood: ${screen.mood || 'Unknown'} | Focus: ${screen.visualFocus || 'Unknown'}`;
+    }).join('\n');
+
+    return `You are an expert App Store and Google Play marketing copywriter. Create compelling marketing titles from the screenshot analysis below.
+
+The screenshots are shown in original project order. Preserve the screenshot index numbers when returning JSON.
+
+LENGTH REQUIREMENTS - THIS IS VERY IMPORTANT:
+- headline: VERY SHORT, maximum 2-4 words. Punchy, memorable, benefit-focused.
+- subheadline: SHORT, maximum 4-8 words. Expands on the headline.
+
+UNIQUENESS - VERY IMPORTANT:
+- Each screenshot MUST have a UNIQUE headline and subheadline
+- Do NOT repeat or reuse similar titles across screenshots
+- Each title should highlight a DIFFERENT feature or benefit
+
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+{
+    "0": { "headline": "...", "subheadline": "..." },
+    "1": { "headline": "...", "subheadline": "..." }
+}
+
+Write all titles in ${langName}.
+
+Screenshot analysis:
+${screenSummaries}`;
+}
+
+async function getOrCreateScreenshotAnalysis(provider, apiKey, sourceLang, sourceLangName, updateStatus) {
+    const cache = ensureAiAnalysisCache();
+    const screenshotInputs = await collectScreenshotAnalysisInputs(sourceLang);
+
+    if (screenshotInputs.length === 0) {
+        return null;
+    }
+
+    const cacheKey = await buildAiCacheKey({
+        sourceLang,
+        screenshots: screenshotInputs.map((item) => item.imageRef)
+    });
+
+    if (cache[cacheKey]?.screens?.length) {
+        return cache[cacheKey];
+    }
+
+    const images = [];
+    const visionInputs = [];
+    for (const input of screenshotInputs) {
+        const payload = await buildVisionImagePayload(input.imageRef);
+        if (payload) {
+            images.push(payload);
+            visionInputs.push(input);
+        }
+    }
+
+    if (!images.length) {
+        return null;
+    }
+
+    if (typeof updateStatus === 'function') {
+        updateStatus('Analyzing screenshots...', `Creating reusable analysis for ${images.length} images`);
+    }
+
+    const prompt = buildScreenshotAnalysisPrompt(images.length, sourceLang, sourceLangName);
+    const responseText = await generateVisionResponse(provider, apiKey, images, prompt);
+    const parsedResponse = extractAiJson(responseText);
+    const parsedScreens = Array.isArray(parsedResponse.screens) ? parsedResponse.screens : [];
+    const parsedByIndex = new Map(parsedScreens.map((screen) => [Number(screen.index), screen]));
+
+    const bundle = {
+        cacheKey,
+        sourceLang,
+        createdAt: new Date().toISOString(),
+        screens: visionInputs.map((input) => {
+            const aiScreen = parsedByIndex.get(input.index) || {};
+            return {
+                index: input.index,
+                summary: aiScreen.summary || '',
+                purpose: aiScreen.purpose || '',
+                keyFeatures: Array.isArray(aiScreen.keyFeatures) ? aiScreen.keyFeatures.filter(Boolean) : [],
+                mood: aiScreen.mood || '',
+                visualFocus: aiScreen.visualFocus || '',
+                palette: input.palette || [],
+                ratio: input.ratio || null
+            };
+        })
+    };
+
+    cache[cacheKey] = bundle;
+
+    if (typeof saveState === 'function') {
+        saveState({ skipHistory: true });
+    }
+
+    return bundle;
+}
+
 /**
  * Generate titles using Anthropic Claude vision API
  * @param {string} apiKey - Anthropic API key
@@ -339,53 +540,12 @@ async function generateMagicalTitles() {
     const sourceLang = langSelect.value || state.projectLanguages[0] || 'en';
     const langName = languageNames[sourceLang] || 'English';
 
-    // Collect images from all screenshots
-    const images = [];
-    for (const screenshot of state.screenshots) {
-        const imageRef = getScreenshotDataUrl(screenshot, sourceLang);
-        if (!imageRef) continue;
+    const screenshotsWithImages = state.screenshots.filter((screenshot) => getScreenshotDataUrl(screenshot, sourceLang));
 
-        const payload = await buildVisionImagePayload(imageRef);
-        if (payload) {
-            images.push(payload);
-        }
-    }
-
-    if (images.length === 0) {
+    if (screenshotsWithImages.length === 0) {
         await showAppAlert('No screenshot images found. Please upload some screenshots first.', 'error');
         return;
     }
-
-    // Build prompt
-    const prompt = `You are an expert App Store and Google Play marketing copywriter. Analyze these ${images.length} app screenshots and create compelling marketing titles.
-
-The screenshots are shown in order (1 through ${images.length}). Study what the app does and identify:
-1. The main purpose and value proposition
-2. The user problem it solves
-3. Key features visible in each screen
-
-CRITICAL: Screenshot 1's headline MUST focus on the main value proposition - what problem does this app solve for users? This is the most important title.
-
-LENGTH REQUIREMENTS - THIS IS VERY IMPORTANT:
-- headline: VERY SHORT, maximum 2-4 words. Punchy, memorable, benefit-focused.
-- subheadline: SHORT, maximum 4-8 words. Expands on the headline.
-
-UNIQUENESS - VERY IMPORTANT:
-- Each screenshot MUST have a UNIQUE headline and subheadline
-- Do NOT repeat or reuse similar titles across screenshots
-- Each title should highlight a DIFFERENT feature or benefit
-
-Examples of good headlines: "Track Every Expense", "Sleep Better Tonight", "Never Forget Again"
-Examples of good subheadlines: "Automatic expense categorization and insights", "Science-backed sleep improvement", "Smart reminders that actually work"
-
-Return ONLY valid JSON in this exact format (no markdown, no explanation):
-{
-    "0": { "headline": "...", "subheadline": "..." },
-    "1": { "headline": "...", "subheadline": "..." }
-}
-
-Where the keys are 0-indexed screenshot numbers.
-Write all titles in ${langName}.`;
 
     // Create progress overlay
     const progressOverlay = document.createElement('div');
@@ -399,7 +559,7 @@ Write all titles in ${langName}.`;
                     </svg>
                 </div>
                 <h3 class="modal-title">Generating Magical Titles...</h3>
-                <p id="magical-titles-status" style="color: var(--text-secondary); margin-top: 8px;">Analyzing ${images.length} screenshots with AI...</p>
+                    <p id="magical-titles-status" style="color: var(--text-secondary); margin-top: 8px;">Preparing reusable screenshot analysis...</p>
                 <p id="magical-titles-detail" style="color: var(--text-tertiary); font-size: 12px; margin-top: 4px;">Using ${providerConfig.name}</p>
             </div>
         </div>
@@ -414,36 +574,20 @@ Write all titles in ${langName}.`;
     };
 
     try {
-        // Call provider-specific API
-        let responseText;
-
-        updateStatus('Sending screenshots to AI...', `${images.length} images to analyze`);
-
-        if (provider === 'anthropic') {
-            responseText = await generateTitlesWithAnthropic(apiKey, images, prompt);
-        } else if (provider === 'openai') {
-            responseText = await generateTitlesWithOpenAI(apiKey, images, prompt);
-        } else if (provider === 'google') {
-            responseText = await generateTitlesWithGoogle(apiKey, images, prompt);
-        } else {
-            throw new Error(`Unknown provider: ${provider}`);
+        const analysis = await getOrCreateScreenshotAnalysis(provider, apiKey, sourceLang, langName, updateStatus);
+        if (!analysis?.screens?.length) {
+            throw new Error('No reusable screenshot analysis could be created.');
         }
+
+        const prompt = buildMagicalTitlesPrompt(analysis.screens, sourceLang, langName);
+        updateStatus('Generating titles...', `Using cached analysis for ${analysis.screens.length} screenshots`);
+
+        const responseText = await generateVisionResponse(provider, apiKey, [], prompt);
 
         updateStatus('Processing response...', 'Parsing generated titles');
 
         // Clean up response - remove markdown code blocks if present
-        responseText = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-
-        // Extract JSON object from response
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            responseText = jsonMatch[0];
-        }
-
-        console.log('Magical Titles response:', responseText);
-
-        // Parse JSON
-        const titles = JSON.parse(responseText);
+        const titles = extractAiJson(responseText);
 
         updateStatus('Applying titles...', 'Updating screenshots');
 
@@ -558,6 +702,145 @@ function mergeDeep(target, source) {
     return output;
 }
 
+function normalizeHex(color, fallback = '#667eea') {
+    if (typeof color !== 'string') return fallback;
+    const value = color.trim();
+    if (/^#[0-9A-Fa-f]{6}$/.test(value)) return value;
+    const shortHex = value.match(/^#([0-9A-Fa-f]{3})$/);
+    if (!shortHex) return fallback;
+    const expanded = shortHex[1].split('').map(ch => ch + ch).join('');
+    return `#${expanded}`;
+}
+
+function normalizeGradientStops(stops) {
+    const fallbackStops = [
+        { color: '#667eea', position: 0 },
+        { color: '#764ba2', position: 100 }
+    ];
+
+    if (!Array.isArray(stops) || stops.length < 2) {
+        return fallbackStops;
+    }
+
+    const normalized = stops
+        .map((stop, index) => ({
+            color: normalizeHex(stop?.color, fallbackStops[Math.min(index, fallbackStops.length - 1)].color),
+            position: clamp(Number(stop?.position ?? (index === 0 ? 0 : 100)), 0, 100)
+        }))
+        .sort((a, b) => a.position - b.position);
+
+    // Ensure first and last anchors exist
+    normalized[0].position = 0;
+    normalized[normalized.length - 1].position = 100;
+
+    return normalized;
+}
+
+function buildSharedAiGradient(layoutPlans, analysisScreens) {
+    const firstGradientPlan = (Array.isArray(layoutPlans) ? layoutPlans : [])
+        .find(plan => plan?.background?.gradient?.stops?.length >= 2);
+
+    if (firstGradientPlan?.background?.gradient) {
+        return {
+            angle: clamp(Number(firstGradientPlan.background.gradient.angle ?? 135), 0, 360),
+            stops: normalizeGradientStops(firstGradientPlan.background.gradient.stops)
+        };
+    }
+
+    const firstPalette = (Array.isArray(analysisScreens) ? analysisScreens : [])
+        .find(screen => Array.isArray(screen?.palette) && screen.palette.length > 0)?.palette || [];
+
+    const firstColor = normalizeHex(firstPalette[0], '#667eea');
+    let secondColor = normalizeHex(firstPalette[1], '#764ba2');
+    if (firstColor.toLowerCase() === secondColor.toLowerCase()) {
+        secondColor = '#764ba2';
+    }
+
+    return {
+        angle: 135,
+        stops: normalizeGradientStops([
+            { color: firstColor, position: 0 },
+            { color: secondColor, position: 100 }
+        ])
+    };
+}
+
+function gradientToCss(gradient) {
+    const angle = clamp(Number(gradient?.angle ?? 135), 0, 360);
+    const stops = normalizeGradientStops(gradient?.stops || []);
+    const stopCss = stops.map(stop => `${stop.color} ${Math.round(stop.position)}%`).join(', ');
+    return `linear-gradient(${Math.round(angle)}deg, ${stopCss})`;
+}
+
+function applyGradientPresetFromCss(gradientCss) {
+    if (typeof setBackground !== 'function' || typeof updateGradientStopsUI !== 'function') return;
+
+    const angleMatch = gradientCss.match(/(\d+)deg/);
+    const colorMatches = gradientCss.matchAll(/(#[a-fA-F0-9]{6})\s+(\d+)%/g);
+
+    if (angleMatch) {
+        const angle = clamp(parseInt(angleMatch[1], 10), 0, 360);
+        setBackground('gradient.angle', angle);
+
+        const angleInput = document.getElementById('gradient-angle');
+        const angleValue = document.getElementById('gradient-angle-value');
+        if (angleInput) angleInput.value = angle;
+        if (angleValue) angleValue.textContent = `${formatValue(angle)}°`;
+    }
+
+    const stops = [];
+    for (const match of colorMatches) {
+        stops.push({ color: match[1], position: clamp(parseInt(match[2], 10), 0, 100) });
+    }
+    if (stops.length >= 2) {
+        setBackground('gradient.stops', normalizeGradientStops(stops));
+        updateGradientStopsUI();
+    }
+
+    const bgButtons = document.querySelectorAll('#bg-type-selector button');
+    bgButtons.forEach(button => button.classList.toggle('active', button.dataset.type === 'gradient'));
+    const gradientOptions = document.getElementById('gradient-options');
+    const solidOptions = document.getElementById('solid-options');
+    const imageOptions = document.getElementById('image-options');
+    if (gradientOptions) gradientOptions.style.display = 'block';
+    if (solidOptions) solidOptions.style.display = 'none';
+    if (imageOptions) imageOptions.style.display = 'none';
+    setBackground('type', 'gradient');
+
+    if (typeof updateCanvas === 'function') {
+        updateCanvas();
+    }
+}
+
+function upsertAiGeneratedGradientPreset(gradient, shouldSelect = false) {
+    const presetContainer = document.getElementById('gradient-presets');
+    if (!presetContainer) return;
+
+    const gradientCss = gradientToCss(gradient);
+    let swatch = presetContainer.querySelector('.preset-swatch[data-ai-generated="true"]');
+
+    if (!swatch) {
+        swatch = document.createElement('div');
+        swatch.className = 'preset-swatch';
+        swatch.dataset.aiGenerated = 'true';
+        swatch.addEventListener('click', () => {
+            document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('selected'));
+            swatch.classList.add('selected');
+            applyGradientPresetFromCss(swatch.dataset.gradient || '');
+        });
+        presetContainer.prepend(swatch);
+    }
+
+    swatch.title = 'AI Generated Gradient';
+    swatch.dataset.gradient = gradientCss;
+    swatch.style.background = gradientCss;
+
+    if (shouldSelect) {
+        document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('selected'));
+        swatch.classList.add('selected');
+    }
+}
+
 async function extractDominantColorsFromDataUrl(dataUrl, maxColors = 4) {
     try {
         const img = await loadImageFromDataUrl(dataUrl);
@@ -631,12 +914,15 @@ function normalizeGeneratedPopout(popout, index) {
     return normalized;
 }
 
-function buildAiLayoutPrompt(screens, sourceLang, sourceLangName) {
-    const screenCount = screens.length;
-    const screenSummaries = screens.map((screen, index) => {
+function buildAiLayoutPrompt(analysisScreens, sourceLang, sourceLangName) {
+    const screenCount = analysisScreens.length;
+    const screenSummaries = analysisScreens.map((screen) => {
         const palette = screen.palette?.length ? screen.palette.join(', ') : 'unknown';
         const ratio = screen.ratio ? screen.ratio.toFixed(2) : 'unknown';
-        return `Screenshot ${index + 1}: ratio ${ratio}, dominant colors ${palette}`;
+        const features = Array.isArray(screen.keyFeatures) && screen.keyFeatures.length
+            ? screen.keyFeatures.join(', ')
+            : 'No key features detected';
+        return `Screenshot ${screen.index + 1}: ratio ${ratio}, dominant colors ${palette}, summary ${screen.summary || 'n/a'}, purpose ${screen.purpose || 'n/a'}, features ${features}, mood ${screen.mood || 'n/a'}, focus ${screen.visualFocus || 'n/a'}`;
     }).join('\n');
 
     return `You are an expert mobile app screenshot designer.
@@ -762,6 +1048,47 @@ Screen context:
 ${screenSummaries}`;
 }
 
+function buildAiBackgroundPrompt(analysisScreens, sourceLang, sourceLangName) {
+        const screenSummaries = analysisScreens.map((screen) => {
+                const palette = screen.palette?.length ? screen.palette.join(', ') : 'unknown';
+                const mood = screen.mood || 'neutral';
+                const focus = screen.visualFocus || 'unknown';
+                return `Screenshot ${screen.index + 1}: dominant colors ${palette}, mood ${mood}, visual focus ${focus}`;
+        }).join('\n');
+
+        return `You are an expert app store visual designer.
+Generate ONE premium gradient background to be used across ALL screenshots in the campaign.
+
+Rules:
+- Return ONLY valid JSON.
+- Return one shared background object (not per-screen).
+- Use high-contrast, modern, polished color combinations.
+- Use hex colors only.
+- Keep gradient stops between 2 and 4 stops.
+
+Schema:
+{
+    "background": {
+        "type": "gradient",
+        "gradient": {
+            "angle": 135,
+            "stops": [
+                { "color": "#667eea", "position": 0 },
+                { "color": "#764ba2", "position": 100 }
+            ]
+        },
+        "solid": "#1a1a2e",
+        "overlayColor": "#000000",
+        "overlayOpacity": 0,
+        "noise": false,
+        "noiseIntensity": 10
+    }
+}
+
+Context for ${sourceLangName} (${sourceLang}) campaign:
+${screenSummaries}`;
+}
+
 function applyGeneratedLayoutToScreenshot(screenshot, plan, sourceLang) {
     if (!screenshot || !plan) return;
 
@@ -866,9 +1193,9 @@ async function generateAiLayout() {
     const sourceLang = state.currentLanguage || state.projectLanguages[0] || 'en';
     const sourceLangName = languageNames[sourceLang] || sourceLang;
 
-    const screenshots = state.screenshots.map((screenshot, index) => ({ screenshot, index })).filter(item => getScreenshotDataUrl(item.screenshot, sourceLang));
+    const screenshotsWithImages = state.screenshots.filter((screenshot) => getScreenshotDataUrl(screenshot, sourceLang));
 
-    if (screenshots.length === 0) {
+    if (screenshotsWithImages.length === 0) {
         showAppAlert('No screenshot images found. Please upload screenshots first.', 'error');
         return;
     }
@@ -887,7 +1214,7 @@ async function generateAiLayout() {
                     </svg>
                 </div>
                 <h3 class="modal-title">Generating AI Layout...</h3>
-                <p id="ai-generate-status" class="modal-message" style="margin-top: 8px; color: var(--text-secondary);">Analyzing screenshot colors and structure...</p>
+                    <p id="ai-generate-status" class="modal-message" style="margin-top: 8px; color: var(--text-secondary);">Preparing reusable screenshot analysis...</p>
                 <p id="ai-generate-detail" class="modal-message" style="font-size: 12px; color: var(--text-tertiary); margin-top: 4px;">Using ${providerConfig.name}</p>
             </div>
         </div>
@@ -902,51 +1229,19 @@ async function generateAiLayout() {
     };
 
     try {
-        const analyzedScreens = [];
-
-        for (let i = 0; i < screenshots.length; i++) {
-            const { screenshot, index } = screenshots[i];
-            updateStatus(`Analyzing screenshot ${i + 1} of ${screenshots.length}...`, 'Extracting dominant colors');
-
-            const dataUrl = getScreenshotDataUrl(screenshot, sourceLang);
-            const image = await loadImageFromDataUrl(dataUrl);
-            const palette = await extractDominantColorsFromDataUrl(dataUrl, 4);
-
-            analyzedScreens.push({
-                index,
-                palette,
-                ratio: image.width && image.height ? (image.width / image.height) : null
-            });
+        const analysis = await getOrCreateScreenshotAnalysis(provider, apiKey, sourceLang, sourceLangName, updateStatus);
+        if (!analysis?.screens?.length) {
+            throw new Error('No reusable screenshot analysis could be created.');
         }
 
-        const images = [];
-        for (const { screenshot } of screenshots) {
-            const imageRef = getScreenshotDataUrl(screenshot, sourceLang);
-            if (!imageRef) continue;
+        const prompt = buildAiLayoutPrompt(analysis.screens, sourceLang, sourceLangName);
+        updateStatus('Generating layout...', `Using cached analysis for ${analysis.screens.length} screenshots`);
 
-            const payload = await buildVisionImagePayload(imageRef);
-            if (payload) images.push(payload);
-        }
-
-        const prompt = buildAiLayoutPrompt(analyzedScreens, sourceLang, sourceLangName);
-        updateStatus('Sending screenshots to AI...', `${images.length} images to analyze`);
-
-        let responseText;
-        if (provider === 'anthropic') {
-            responseText = await generateTitlesWithAnthropic(apiKey, images, prompt);
-        } else if (provider === 'openai') {
-            responseText = await generateTitlesWithOpenAI(apiKey, images, prompt);
-        } else if (provider === 'google') {
-            responseText = await generateTitlesWithGoogle(apiKey, images, prompt);
-        } else {
-            throw new Error(`Unknown provider: ${provider}`);
-        }
+        const responseText = await generateVisionResponse(provider, apiKey, [], prompt);
 
         updateStatus('Parsing AI response...', 'Building layout plan');
 
-        responseText = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        const parsedResponse = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+        const parsedResponse = extractAiJson(responseText);
         const screens = Array.isArray(parsedResponse) ? parsedResponse : (parsedResponse.screens || []);
 
         if (!screens.length) {
@@ -957,14 +1252,25 @@ async function generateAiLayout() {
             state.projectLanguages.push(sourceLang);
         }
 
+        // Enforce one shared AI-generated gradient across all screens.
+        const sharedGradient = buildSharedAiGradient(screens, analysis.screens);
+        const sharedBackgroundPatch = {
+            type: 'gradient',
+            gradient: sharedGradient,
+            solid: sharedGradient.stops[0]?.color || '#667eea'
+        };
+
         updateStatus('Applying AI layout...', 'Updating screenshots');
 
         state.screenshots.forEach((screenshot, index) => {
-            const plan = screens.find(item => Number(item.index) === index) || screens[index];
-            if (plan) {
-                applyGeneratedLayoutToScreenshot(screenshot, plan, sourceLang);
-            }
+            const sourcePlan = screens.find(item => Number(item.index) === index) || screens[index] || {};
+            const plan = mergeDeep({}, sourcePlan);
+            plan.background = mergeDeep(plan.background || {}, sharedBackgroundPatch);
+            applyGeneratedLayoutToScreenshot(screenshot, plan, sourceLang);
         });
+
+        state.defaults.background = mergeDeep(state.defaults.background || {}, sharedBackgroundPatch);
+        upsertAiGeneratedGradientPreset(sharedGradient, true);
 
         syncUIWithState();
         updateCanvas();
@@ -982,6 +1288,102 @@ async function generateAiLayout() {
             await showAppAlert('Failed to parse AI response. Please try again.', 'error');
         } else {
             await showAppAlert(`Error generating AI layout: ${error.message}`, 'error');
+        }
+    }
+}
+
+async function generateAiBackground() {
+    const provider = getSelectedProvider();
+    const providerConfig = llmProviders[provider];
+    const apiKey = localStorage.getItem(providerConfig.storageKey);
+
+    if (!apiKey) {
+        showAppAlert('Please configure your AI API key in Settings first.', 'error');
+        return;
+    }
+
+    const sourceLang = state.currentLanguage || state.projectLanguages[0] || 'en';
+    const sourceLangName = languageNames[sourceLang] || sourceLang;
+
+    const screenshotsWithImages = state.screenshots.filter((screenshot) => getScreenshotDataUrl(screenshot, sourceLang));
+
+    if (screenshotsWithImages.length === 0) {
+        showAppAlert('No screenshot images found. Please upload screenshots first.', 'error');
+        return;
+    }
+
+    const progressOverlay = document.createElement('div');
+    progressOverlay.id = 'ai-generate-bg-progress';
+    progressOverlay.innerHTML = `
+        <div class="modal-overlay visible">
+            <div class="modal">
+                <div class="modal-icon" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #667eea; animation: spin 2s linear infinite;">
+                        <path d="M4 4h7v7H4z"/>
+                        <path d="M13 4h7v7h-7z"/>
+                        <path d="M4 13h7v7H4z"/>
+                        <path d="M15 15h5v5h-5z"/>
+                    </svg>
+                </div>
+                <h3 class="modal-title">Generating AI Background...</h3>
+                <p id="ai-bg-status" class="modal-message" style="margin-top: 8px; color: var(--text-secondary);">Preparing reusable screenshot analysis...</p>
+                <p id="ai-bg-detail" class="modal-message" style="font-size: 12px; color: var(--text-tertiary); margin-top: 4px;">Using ${providerConfig.name}</p>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(progressOverlay);
+
+    const updateStatus = (status, detail = '') => {
+        const statusEl = document.getElementById('ai-bg-status');
+        const detailEl = document.getElementById('ai-bg-detail');
+        if (statusEl) statusEl.textContent = status;
+        if (detailEl) detailEl.textContent = detail;
+    };
+
+    try {
+        const analysis = await getOrCreateScreenshotAnalysis(provider, apiKey, sourceLang, sourceLangName, updateStatus);
+        if (!analysis?.screens?.length) {
+            throw new Error('No reusable screenshot analysis could be created.');
+        }
+
+        const prompt = buildAiBackgroundPrompt(analysis.screens, sourceLang, sourceLangName);
+        updateStatus('Generating shared background...', `Using cached analysis for ${analysis.screens.length} screenshots`);
+
+        const responseText = await generateVisionResponse(provider, apiKey, [], prompt);
+        updateStatus('Parsing AI response...', 'Building shared gradient');
+
+        const parsedResponse = extractAiJson(responseText);
+        const responseBackground = parsedResponse?.background || parsedResponse;
+        const sharedGradient = buildSharedAiGradient([{ background: responseBackground }], analysis.screens);
+        const sharedBackgroundPatch = {
+            type: 'gradient',
+            gradient: sharedGradient,
+            solid: sharedGradient.stops[0]?.color || '#667eea'
+        };
+
+        state.screenshots.forEach((screenshot) => {
+            screenshot.background = mergeDeep(screenshot.background || JSON.parse(JSON.stringify(state.defaults.background)), sharedBackgroundPatch);
+        });
+
+        state.defaults.background = mergeDeep(state.defaults.background || {}, sharedBackgroundPatch);
+        upsertAiGeneratedGradientPreset(sharedGradient, true);
+
+        syncUIWithState();
+        updateCanvas();
+        saveState();
+
+        progressOverlay.remove();
+        await showAppAlert('Generated one shared AI gradient background for all screenshots.', 'success');
+    } catch (error) {
+        console.error('AI background generation error:', error);
+        progressOverlay.remove();
+
+        if (error.message === 'AI_UNAVAILABLE') {
+            await showAppAlert('AI service unavailable. Please check your API key in Settings.', 'error');
+        } else if (error instanceof SyntaxError) {
+            await showAppAlert('Failed to parse AI response. Please try again.', 'error');
+        } else {
+            await showAppAlert(`Error generating background: ${error.message}`, 'error');
         }
     }
 }
