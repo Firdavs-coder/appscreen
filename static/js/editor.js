@@ -38,6 +38,7 @@ const state = {
             cornerRadius: 24,
             use3D: false,
             device3D: 'iphone',
+            device2D: 'iphone-15-pro-max',
             rotation3D: { x: 0, y: 0, z: 0 },
             shadow: {
                 enabled: true,
@@ -143,7 +144,20 @@ function getBackground() {
 
 function getScreenshotSettings() {
     const screenshot = getCurrentScreenshot();
-    return screenshot ? screenshot.screenshot : state.defaults.screenshot;
+    if (screenshot) {
+        if (!screenshot.screenshot) {
+            screenshot.screenshot = JSON.parse(JSON.stringify(state.defaults.screenshot));
+        }
+        if (!screenshot.screenshot.device2D) {
+            screenshot.screenshot.device2D = state.defaults.screenshot.device2D || 'iphone-15-pro-max';
+        }
+        return screenshot.screenshot;
+    }
+
+    if (!state.defaults.screenshot.device2D) {
+        state.defaults.screenshot.device2D = 'iphone-15-pro-max';
+    }
+    return state.defaults.screenshot;
 }
 
 function getText() {
@@ -348,6 +362,19 @@ function getScreenshotBounds(dims = getCanvasDimensions()) {
     const moveY = Math.max(dims.height - imgHeight, dims.height * 0.15);
     const x = (dims.width - imgWidth) / 2 + (settings.x / 100 - 0.5) * moveX;
     const y = (dims.height - imgHeight) / 2 + (settings.y / 100 - 0.5) * moveY;
+
+    const twoDModel = get2DDeviceModel(settings);
+    if (twoDModel) {
+        const layout = get2DDeviceLayoutForScreen(twoDModel, x, y, imgWidth, imgHeight, settings);
+        if (layout) {
+            return {
+                x: layout.frameX,
+                y: layout.frameY,
+                width: layout.frameWidth,
+                height: layout.frameHeight
+            };
+        }
+    }
 
     return { x, y, width: imgWidth, height: imgHeight };
 }
@@ -2295,6 +2322,350 @@ const deviceDimensions = {
     'web-feature': { width: 1024, height: 500 }
 };
 
+const twoDDeviceModels = {
+    'samsung-galaxy-s24-ultra-2024-medium': {
+        id: 'samsung-galaxy-s24-ultra-2024-medium',
+        label: 'Samsung Galaxy S24 Ultra',
+        frameSrc: 'models/2d/samsung-galaxy-s24-ultra-2024-medium.png',
+        screen: {
+            x: 16 / 366,
+            y: 13 / 750,
+            width: 333 / 366,
+            height: 722 / 750
+        },
+        screenCornerRadiusRatio: 0.01,
+        frameCornerRadiusRatio: 0.03,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'samsung-galaxy-s24-2024-medium': {
+        id: 'samsung-galaxy-s24-2024-medium',
+        label: 'Samsung Galaxy S24',
+        frameSrc: 'models/2d/samsung-galaxy-s24-2024-medium.png',
+        screen: {
+            x: 13 / 362,
+            y: 13 / 750,
+            width: 334 / 362,
+            height: 725 / 750
+        },
+        screenCornerRadiusRatio: 0.10,
+        frameCornerRadiusRatio: 0.12,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'google-pixel-8-2024-medium': {
+        id: 'google-pixel-8-2024-medium',
+        label: 'Google Pixel 8',
+        frameSrc: 'models/2d/google-pixel-8-2024-medium.png',
+        screen: {
+            x: 16 / 356,
+            y: 16 / 750,
+            width: 321 / 356,
+            height: 715 / 750
+        },
+        screenCornerRadiusRatio: 0.09,
+        frameCornerRadiusRatio: 0.11,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-air-2025-medium': {
+        id: 'apple-iphone-air-2025-medium',
+        label: 'Apple iPhone Air',
+        frameSrc: 'models/2d/apple-iphone-air-2025-medium.png',
+        screen: {
+            x: 14 / 363,
+            y: 12 / 750,
+            width: 335 / 363,
+            height: 727 / 750
+        },
+        screenCornerRadiusRatio: 0.17,
+        frameCornerRadiusRatio: 0.19,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-16-pro-max-2024-medium': {
+        id: 'apple-iphone-16-pro-max-2024-medium',
+        label: 'Apple iPhone 16 Pro Max',
+        frameSrc: 'models/2d/apple-iphone-16-pro-max-2024-medium.png',
+        screen: {
+            x: 16 / 364,
+            y: 14 / 750,
+            width: 332 / 364,
+            height: 723 / 750
+        },
+        screenCornerRadiusRatio: 0.17,
+        frameCornerRadiusRatio: 0.19,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-16-plus-2024-medium': {
+        id: 'apple-iphone-16-plus-2024-medium',
+        label: 'Apple iPhone 16 Plus',
+        frameSrc: 'models/2d/apple-iphone-16-plus-2024-medium.png',
+        screen: {
+            x: 20 / 369,
+            y: 17 / 750,
+            width: 329 / 369,
+            height: 715 / 750
+        },
+        screenCornerRadiusRatio: 0.15,
+        frameCornerRadiusRatio: 0.17,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-16-2024-medium': {
+        id: 'apple-iphone-16-2024-medium',
+        label: 'Apple iPhone 16',
+        frameSrc: 'models/2d/apple-iphone-16-2024-medium.png',
+        screen: {
+            x: 20 / 369,
+            y: 17 / 750,
+            width: 329 / 369,
+            height: 715 / 750
+        },
+        screenCornerRadiusRatio: 0.15,
+        frameCornerRadiusRatio: 0.17,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-14-pro-max-2022-medium': {
+        id: 'apple-iphone-14-pro-max-2022-medium',
+        label: 'Apple iPhone 14 Pro Max',
+        frameSrc: 'models/2d/apple-iphone-14-pro-max-2022-medium.png',
+        screen: {
+            x: 20 / 368,
+            y: 18 / 750,
+            width: 329 / 368,
+            height: 714 / 750
+        },
+        screenCornerRadiusRatio: 0.17,
+        frameCornerRadiusRatio: 0.19,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-14-pro-2022-medium': {
+        id: 'apple-iphone-14-pro-2022-medium',
+        label: 'Apple iPhone 14 Pro',
+        frameSrc: 'models/2d/apple-iphone-14-pro-2022-medium.png',
+        screen: {
+            x: 20 / 368,
+            y: 18 / 750,
+            width: 329 / 368,
+            height: 715 / 750
+        },
+        screenCornerRadiusRatio: 0.15,
+        frameCornerRadiusRatio: 0.17,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-14-max-2022-medium': {
+        id: 'apple-iphone-14-max-2022-medium',
+        label: 'Apple iPhone 14 Max',
+        frameSrc: 'models/2d/apple-iphone-14-max-2022-medium.png',
+        screen: {
+            x: 20 / 370,
+            y: 17 / 750,
+            width: 331 / 370,
+            height: 716 / 750
+        },
+        screenCornerRadiusRatio: 0.15,
+        frameCornerRadiusRatio: 0.17,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-14-2022-medium': {
+        id: 'apple-iphone-14-2022-medium',
+        label: 'Apple iPhone 14',
+        frameSrc: 'models/2d/apple-iphone-14-2022-medium.png',
+        screen: {
+            x: 20 / 368,
+            y: 17 / 750,
+            width: 329 / 368,
+            height: 714 / 750
+        },
+        screenCornerRadiusRatio: 0.15,
+        frameCornerRadiusRatio: 0.17,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-15-pro-max-2023-medium': {
+        id: 'apple-iphone-15-pro-max-2023-medium',
+        label: 'Apple iPhone 15 Pro Max',
+        frameSrc: 'models/2d/apple-iphone-15-pro-max-2023-medium.png',
+        screen: {
+            x: 15 / 365,
+            y: 13 / 750,
+            width: 334 / 365,
+            height: 725 / 750
+        },
+        screenCornerRadiusRatio: 0.17,
+        frameCornerRadiusRatio: 0.19,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-15-pro-2023-medium': {
+        id: 'apple-iphone-15-pro-2023-medium',
+        label: 'Apple iPhone 15 Pro',
+        frameSrc: 'models/2d/apple-iphone-15-pro-2023-medium.png',
+        screen: {
+            x: 18 / 367,
+            y: 14 / 750,
+            width: 332 / 367,
+            height: 722 / 750
+        },
+        screenCornerRadiusRatio: 0.15,
+        frameCornerRadiusRatio: 0.17,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-15-plus-2023-medium': {
+        id: 'apple-iphone-15-plus-2023-medium',
+        label: 'Apple iPhone 15 Plus',
+        frameSrc: 'models/2d/apple-iphone-15-plus-2023-medium.png',
+        screen: {
+            x: 18 / 368,
+            y: 14 / 750,
+            width: 333 / 368,
+            height: 722 / 750
+        },
+        screenCornerRadiusRatio: 0.15,
+        frameCornerRadiusRatio: 0.17,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-15-2023-medium': {
+        id: 'apple-iphone-15-2023-medium',
+        label: 'Apple iPhone 15',
+        frameSrc: 'models/2d/apple-iphone-15-2023-medium.png',
+        screen: {
+            x: 18 / 367,
+            y: 15 / 750,
+            width: 332 / 367,
+            height: 720 / 750
+        },
+        screenCornerRadiusRatio: 0.15,
+        frameCornerRadiusRatio: 0.17,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-17-pro-max-2025-medium': {
+        id: 'apple-iphone-17-pro-max-2025-medium',
+        label: 'Apple iPhone 17 Pro Max',
+        frameSrc: 'models/2d/apple-iphone-17-pro-max-2025-medium.png',
+        screen: {
+            x: 16 / 365,
+            y: 13 / 750,
+            width: 333 / 365,
+            height: 724 / 750
+        },
+        screenCornerRadiusRatio: 0.17,
+        frameCornerRadiusRatio: 0.19,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-17-pro-2025-medium': {
+        id: 'apple-iphone-17-pro-2025-medium',
+        label: 'Apple iPhone 17 Pro',
+        frameSrc: 'models/2d/apple-iphone-17-pro-2025-medium.png',
+        screen: {
+            x: 16 / 365,
+            y: 13 / 750,
+            width: 334 / 365,
+            height: 724 / 750
+        },
+        screenCornerRadiusRatio: 0.15,
+        frameCornerRadiusRatio: 0.17,
+        frameImage: null,
+        frameImageLoading: false
+    },
+    'apple-iphone-17-2025-medium': {
+        id: 'apple-iphone-17-2025-medium',
+        label: 'Apple iPhone 17',
+        frameSrc: 'models/2d/apple-iphone-17-2025-medium.png',
+        screen: {
+            x: 15 / 363,
+            y: 13 / 750,
+            width: 333 / 363,
+            height: 724 / 750
+        },
+        screenCornerRadiusRatio: 0.15,
+        frameCornerRadiusRatio: 0.17,
+        frameImage: null,
+        frameImageLoading: false
+    }
+};
+
+function get2DDeviceModelId(settings = getScreenshotSettings()) {
+    return settings?.device2D || state.defaults.screenshot.device2D || 'samsung-galaxy-s24-ultra-2024-medium';
+}
+
+function get2DDeviceModel(settings = getScreenshotSettings()) {
+    const modelId = get2DDeviceModelId(settings);
+    return twoDDeviceModels[modelId] || twoDDeviceModels['samsung-galaxy-s24-ultra-2024-medium'];
+}
+
+function ensure2DDeviceFrameImage(model) {
+    if (!model) return null;
+
+    if (model.frameImage && model.frameImage.complete && model.frameImage.naturalWidth > 0) {
+        return model.frameImage;
+    }
+
+    if (!model.frameImageLoading) {
+        model.frameImageLoading = true;
+        const frameImage = new Image();
+        frameImage.onload = () => {
+            model.frameImageLoading = false;
+            model.frameImage = frameImage;
+            updateCanvas();
+        };
+        frameImage.onerror = () => {
+            model.frameImageLoading = false;
+            model.frameImage = null;
+        };
+        frameImage.src = model.frameSrc;
+        model.frameImage = frameImage;
+    }
+
+    return null;
+}
+
+function get2DDeviceLayoutForScreen(model, screenX, screenY, screenWidth, screenHeight, settings) {
+    if (!model || !model.screen || model.screen.width <= 0 || model.screen.height <= 0) {
+        return null;
+    }
+
+    const frameWidth = screenWidth / model.screen.width;
+    const frameHeight = screenHeight / model.screen.height;
+    const frameX = screenX - model.screen.x * frameWidth;
+    const frameY = screenY - model.screen.y * frameHeight;
+
+    const cornerRadiusScale = Math.max(0, (settings?.cornerRadius ?? 24) / 24);
+    const screenRadius = (model.screenCornerRadiusRatio || 0.14) * screenWidth * cornerRadiusScale;
+    const frameRadius = (model.frameCornerRadiusRatio || 0.16) * frameWidth;
+
+    return {
+        frameX,
+        frameY,
+        frameWidth,
+        frameHeight,
+        frameRadius,
+        screenX,
+        screenY,
+        screenWidth,
+        screenHeight,
+        screenRadius
+    };
+}
+
+function addRoundedRectPath(context, x, y, width, height, radius) {
+    if (typeof context.roundRect === 'function') {
+        context.roundRect(x, y, width, height, radius);
+    } else {
+        roundRect(context, x, y, width, height, radius);
+    }
+}
+
 // DOM elements
 const canvas = document.getElementById('preview-canvas');
 const ctx = canvas.getContext('2d');
@@ -3521,6 +3892,10 @@ function resetStateToDefaults() {
             rotation: 0,
             perspective: 0,
             cornerRadius: 24,
+            use3D: false,
+            device3D: 'iphone',
+            device2D: 'iphone-15-pro-max',
+            rotation3D: { x: 0, y: 0, z: 0 },
             shadow: {
                 enabled: true,
                 color: '#000000',
@@ -3954,6 +4329,7 @@ function syncUIWithState() {
     // 3D mode
     const use3D = ss.use3D || false;
     const device3D = ss.device3D || 'iphone';
+    const device2D = get2DDeviceModelId(ss);
     const rotation3D = ss.rotation3D || { x: 0, y: 0, z: 0 };
     document.querySelectorAll('#device-type-selector button').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.type === (use3D ? '3d' : '2d'));
@@ -3961,6 +4337,13 @@ function syncUIWithState() {
     document.querySelectorAll('#device-3d-selector button').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.model === device3D);
     });
+    const device2DSelect = document.getElementById('device-2d-model');
+    if (device2DSelect) {
+        device2DSelect.value = device2D;
+        if (typeof refreshCustomSelect === 'function') {
+            refreshCustomSelect(device2DSelect);
+        }
+    }
     updateFrameColorSwatches(device3D, ss.frameColor);
     document.getElementById('rotation-3d-options').style.display = use3D ? 'block' : 'none';
     document.getElementById('rotation-3d-x').value = rotation3D.x;
@@ -3971,6 +4354,10 @@ function syncUIWithState() {
     document.getElementById('rotation-3d-z-value').textContent = formatValue(rotation3D.z) + '°';
 
     // Hide 2D-only settings in 3D mode, show 3D tip
+    const device2DModelGroup = document.getElementById('device-2d-model-group');
+    if (device2DModelGroup) {
+        device2DModelGroup.style.display = use3D ? 'none' : 'block';
+    }
     document.getElementById('2d-only-settings').style.display = use3D ? 'none' : 'block';
     document.getElementById('position-presets-section').style.display = use3D ? 'none' : 'block';
     document.getElementById('frame-color-section').style.display = use3D ? 'block' : 'none';
@@ -6864,6 +7251,10 @@ function setupEventListeners() {
             document.getElementById('rotation-3d-options').style.display = use3D ? 'block' : 'none';
 
             // Hide 2D-only settings in 3D mode, show 3D tip
+            const device2DModelGroup = document.getElementById('device-2d-model-group');
+            if (device2DModelGroup) {
+                device2DModelGroup.style.display = use3D ? 'none' : 'block';
+            }
             document.getElementById('2d-only-settings').style.display = use3D ? 'none' : 'block';
             document.getElementById('position-presets-section').style.display = use3D ? 'none' : 'block';
             document.getElementById('frame-color-section').style.display = use3D ? 'block' : 'none';
@@ -6879,6 +7270,13 @@ function setupEventListeners() {
 
             updateCanvas();
         });
+    });
+
+    // 2D device model selector
+    document.getElementById('device-2d-model')?.addEventListener('change', (e) => {
+        const modelId = e.target.value || 'iphone-15-pro-max';
+        setScreenshotSetting('device2D', modelId);
+        updateCanvas();
     });
 
     // 3D device model selector
@@ -9507,6 +9905,28 @@ function drawScreenshotToContext(context, dims, img, settings) {
     const moveY = Math.max(dims.height - imgHeight, dims.height * 0.15);
     const x = (dims.width - imgWidth) / 2 + (settings.x / 100 - 0.5) * moveX;
     const y = (dims.height - imgHeight) / 2 + (settings.y / 100 - 0.5) * moveY;
+
+    const twoDModel = get2DDeviceModel(settings);
+    const frameImage = ensure2DDeviceFrameImage(twoDModel);
+    const modelLayout = twoDModel
+        ? get2DDeviceLayoutForScreen(twoDModel, x, y, imgWidth, imgHeight, settings)
+        : null;
+    const has2DFrame = !!(modelLayout && frameImage);
+
+    const drawX = has2DFrame ? modelLayout.screenX : x;
+    const drawY = has2DFrame ? modelLayout.screenY : y;
+    const drawWidth = has2DFrame ? modelLayout.screenWidth : imgWidth;
+    const drawHeight = has2DFrame ? modelLayout.screenHeight : imgHeight;
+    const radius = has2DFrame
+        ? modelLayout.screenRadius
+        : (settings.cornerRadius || 0) * (imgWidth / 400);
+
+    const shadowX = has2DFrame ? modelLayout.frameX : drawX;
+    const shadowY = has2DFrame ? modelLayout.frameY : drawY;
+    const shadowWidth = has2DFrame ? modelLayout.frameWidth : drawWidth;
+    const shadowHeight = has2DFrame ? modelLayout.frameHeight : drawHeight;
+    const shadowRadius = has2DFrame ? modelLayout.frameRadius : radius;
+
     const centerX = x + imgWidth / 2;
     const centerY = y + imgHeight / 2;
 
@@ -9527,9 +9947,6 @@ function drawScreenshotToContext(context, dims, img, settings) {
 
     context.translate(-centerX, -centerY);
 
-    // Scale corner radius with image size
-    const radius = (settings.cornerRadius || 0) * (imgWidth / 400);
-
     // Draw shadow first (needs a filled shape, not clipped)
     if (settings.shadow && settings.shadow.enabled) {
         const shadowOpacity = settings.shadow.opacity / 100;
@@ -9542,7 +9959,7 @@ function drawScreenshotToContext(context, dims, img, settings) {
         // Draw filled rounded rect for shadow
         context.fillStyle = '#000';
         context.beginPath();
-        context.roundRect(x, y, imgWidth, imgHeight, radius);
+        addRoundedRectPath(context, shadowX, shadowY, shadowWidth, shadowHeight, shadowRadius);
         context.fill();
 
         // Reset shadow before drawing image
@@ -9554,11 +9971,26 @@ function drawScreenshotToContext(context, dims, img, settings) {
 
     // Clip and draw image
     context.beginPath();
-    context.roundRect(x, y, imgWidth, imgHeight, radius);
+    addRoundedRectPath(context, drawX, drawY, drawWidth, drawHeight, radius);
     context.clip();
-    context.drawImage(img, x, y, imgWidth, imgHeight);
+    context.drawImage(img, drawX, drawY, drawWidth, drawHeight);
 
+    // Restore context to remove clip region before drawing frame
     context.restore();
+
+    if (has2DFrame) {
+        context.save();
+        context.translate(centerX, centerY);
+        if (settings.rotation !== 0) {
+            context.rotate(settings.rotation * Math.PI / 180);
+        }
+        if (settings.perspective !== 0) {
+            context.transform(1, settings.perspective * 0.01, 0, 1, 0, 0);
+        }
+        context.translate(-centerX, -centerY);
+        context.drawImage(frameImage, modelLayout.frameX, modelLayout.frameY, modelLayout.frameWidth, modelLayout.frameHeight);
+        context.restore();
+    }
 
     // Draw device frame if enabled
     if (settings.frame && settings.frame.enabled) {
@@ -9571,7 +10003,7 @@ function drawScreenshotToContext(context, dims, img, settings) {
             context.transform(1, settings.perspective * 0.01, 0, 1, 0, 0);
         }
         context.translate(-centerX, -centerY);
-        drawDeviceFrameToContext(context, x, y, imgWidth, imgHeight, settings);
+        drawDeviceFrameToContext(context, drawX, drawY, drawWidth, drawHeight, settings);
         context.restore();
     }
 }
@@ -10146,6 +10578,27 @@ function drawScreenshot() {
     const x = (dims.width - imgWidth) / 2 + (settings.x / 100 - 0.5) * moveX;
     const y = (dims.height - imgHeight) / 2 + (settings.y / 100 - 0.5) * moveY;
 
+    const twoDModel = get2DDeviceModel(settings);
+    const frameImage = ensure2DDeviceFrameImage(twoDModel);
+    const modelLayout = twoDModel
+        ? get2DDeviceLayoutForScreen(twoDModel, x, y, imgWidth, imgHeight, settings)
+        : null;
+    const has2DFrame = !!(modelLayout && frameImage);
+
+    const drawX = has2DFrame ? modelLayout.screenX : x;
+    const drawY = has2DFrame ? modelLayout.screenY : y;
+    const drawWidth = has2DFrame ? modelLayout.screenWidth : imgWidth;
+    const drawHeight = has2DFrame ? modelLayout.screenHeight : imgHeight;
+    const radius = has2DFrame
+        ? modelLayout.screenRadius
+        : settings.cornerRadius * (imgWidth / 400);
+
+    const shadowX = has2DFrame ? modelLayout.frameX : drawX;
+    const shadowY = has2DFrame ? modelLayout.frameY : drawY;
+    const shadowWidth = has2DFrame ? modelLayout.frameWidth : drawWidth;
+    const shadowHeight = has2DFrame ? modelLayout.frameHeight : drawHeight;
+    const shadowRadius = has2DFrame ? modelLayout.frameRadius : radius;
+
     // Center point for transformations
     const centerX = x + imgWidth / 2;
     const centerY = y + imgHeight / 2;
@@ -10162,14 +10615,10 @@ function drawScreenshot() {
 
     // Apply perspective (simulated with scale transform)
     if (settings.perspective !== 0) {
-        const perspectiveScale = 1 - Math.abs(settings.perspective) * 0.005;
         ctx.transform(1, settings.perspective * 0.01, 0, 1, 0, 0);
     }
 
     ctx.translate(-centerX, -centerY);
-
-    // Draw rounded rectangle with screenshot
-    const radius = settings.cornerRadius * (imgWidth / 400); // Scale radius with image
 
     // Draw shadow first (needs a filled shape, not clipped)
     if (settings.shadow.enabled) {
@@ -10182,7 +10631,7 @@ function drawScreenshot() {
         // Draw filled rounded rect for shadow
         ctx.fillStyle = '#000';
         ctx.beginPath();
-        roundRect(ctx, x, y, imgWidth, imgHeight, radius);
+        addRoundedRectPath(ctx, shadowX, shadowY, shadowWidth, shadowHeight, shadowRadius);
         ctx.fill();
 
         // Reset shadow before drawing image
@@ -10194,11 +10643,27 @@ function drawScreenshot() {
 
     // Clip and draw image
     ctx.beginPath();
-    roundRect(ctx, x, y, imgWidth, imgHeight, radius);
+    addRoundedRectPath(ctx, drawX, drawY, drawWidth, drawHeight, radius);
     ctx.clip();
-    ctx.drawImage(img, x, y, imgWidth, imgHeight);
+    ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
 
+    // Restore context to remove clip region before drawing frame
     ctx.restore();
+
+    // Draw frame image on top (without clip region)
+    if (has2DFrame) {
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        if (settings.rotation !== 0) {
+            ctx.rotate(settings.rotation * Math.PI / 180);
+        }
+        if (settings.perspective !== 0) {
+            ctx.transform(1, settings.perspective * 0.01, 0, 1, 0, 0);
+        }
+        ctx.translate(-centerX, -centerY);
+        ctx.drawImage(frameImage, modelLayout.frameX, modelLayout.frameY, modelLayout.frameWidth, modelLayout.frameHeight);
+        ctx.restore();
+    }
 
     // Draw device frame if enabled (needs separate transform context)
     if (settings.frame.enabled) {
@@ -10211,7 +10676,7 @@ function drawScreenshot() {
             ctx.transform(1, settings.perspective * 0.01, 0, 1, 0, 0);
         }
         ctx.translate(-centerX, -centerY);
-        drawDeviceFrame(x, y, imgWidth, imgHeight);
+        drawDeviceFrame(drawX, drawY, drawWidth, drawHeight);
         ctx.restore();
     }
 }
