@@ -43,7 +43,7 @@ document.getElementById('googleLoginBtn')?.addEventListener('click', async () =>
         window.location.href = '/profile/';
       }
     }
-  } catch (error) {
+  } catch {
     notice.textContent = 'Google login will be implemented soon.';
     notice.className = 'auth-notice muted';
   }

@@ -397,7 +397,9 @@ function drawScreenshotToContext(context, dims, img, settings) {
     context.translate(-centerX, -centerY);
 
     // Draw shadow first (needs a filled shape, not clipped)
-    if (settings.shadow && settings.shadow.enabled) {
+    // For baked 2D device frames, skip generic shadow to avoid dark edge artifacts
+    // around transparent anti-aliased frame pixels.
+    if (!has2DFrame && settings.shadow && settings.shadow.enabled) {
         const shadowOpacity = settings.shadow.opacity / 100;
         const shadowColor = settings.shadow.color + Math.round(shadowOpacity * 255).toString(16).padStart(2, '0');
         context.shadowColor = shadowColor;
@@ -445,8 +447,8 @@ function drawScreenshotToContext(context, dims, img, settings) {
         context.restore();
     }
 
-    // Draw device frame if enabled
-    if (settings.frame && settings.frame.enabled) {
+    // Draw device frame if enabled (skip for 2D models, which already include a frame image)
+    if (!has2DFrame && settings.frame && settings.frame.enabled) {
         context.save();
         context.translate(centerX, centerY);
         if (settings.rotation !== 0) {

@@ -7,7 +7,6 @@ let phoneModel = null;
 let phonePivot = null;  // Pivot group for rotation around screen center
 let screenMesh = null;
 let customScreenPlane = null;
-let orbitControls = null;
 let isThreeJSInitialized = false;
 let phoneModelLoaded = false;
 let phoneModelLoading = false;
@@ -87,9 +86,6 @@ var frameColorPresets = {
           materials: { back_glass: '#2a2a2a', frame: '#484848', antenna: '#353535' } },
     ]
 };
-
-// Store original material colors for the current model
-let originalMaterialColors = {};
 
 // Apply a frame color preset to the phone model
 function setPhoneFrameColor(presetId, deviceType) {
@@ -185,18 +181,6 @@ function initThreeJS() {
     rimLight.position.set(0, -2, -3);
     threeScene.add(rimLight);
 
-    // Add orbit controls (disabled - we use custom drag handling for better performance)
-    // orbitControls = new THREE.OrbitControls(threeCamera, threeRenderer.domElement);
-    // orbitControls.enableDamping = true;
-    // orbitControls.dampingFactor = 0.05;
-    // orbitControls.enableZoom = false;
-    // orbitControls.enablePan = false;
-    // orbitControls.rotateSpeed = 0.5;
-    // orbitControls.minPolarAngle = Math.PI / 4;
-    // orbitControls.maxPolarAngle = Math.PI * 3 / 4;
-    // orbitControls.minAzimuthAngle = -Math.PI / 3;
-    // orbitControls.maxAzimuthAngle = Math.PI / 3;
-
     isThreeJSInitialized = true;
 
     // Load the phone model - check state for which device to use
@@ -241,26 +225,16 @@ function loadPhoneModel() {
             baseModelScale = 3.75 / maxDim;
             phoneModel.scale.setScalar(baseModelScale);
 
-            // Log all meshes to help identify the screen
-            console.log('Phone model meshes:');
-            let blackMeshes = [];
+            // Find a likely screen mesh as fallback
             phoneModel.traverse((child) => {
                 if (child.isMesh) {
-                    console.log('  Mesh:', child.name, '| Material:', child.material?.name);
-
-                    // Look for screen mesh - in this model it's likely "black" material
                     const name = (child.name || '').toLowerCase();
                     const matName = (child.material?.name || '').toLowerCase();
-
-                    if (matName === 'black') {
-                        blackMeshes.push(child);
-                    }
 
                     if (name.includes('screen') || name.includes('display') ||
                         matName.includes('screen') || matName.includes('display') ||
                         matName.includes('emission') || matName.includes('emissive')) {
                         screenMesh = child;
-                        console.log('  -> Identified as screen mesh');
                     }
                 }
             });
@@ -278,7 +252,6 @@ function loadPhoneModel() {
                         box.getSize(size);
                         const area = size.x * size.y;
                         glassMeshes.push({ mesh: child, area, size });
-                        console.log('  Glass mesh:', child.name, 'size:', size.x.toFixed(3), 'x', size.y.toFixed(3), 'area:', area.toFixed(3));
                     }
                 }
             });
@@ -287,7 +260,6 @@ function loadPhoneModel() {
             if (glassMeshes.length > 0) {
                 glassMeshes.sort((a, b) => b.area - a.area);
                 screenMesh = glassMeshes[0].mesh;
-                console.log('  -> Using largest glass mesh as screen:', screenMesh.name);
             }
 
             // Create a pivot group for rotation around screen center
@@ -334,13 +306,8 @@ function loadPhoneModel() {
                     updateCanvas();
                 }
             }
-
-            console.log('Phone model loaded successfully');
         },
-        (progress) => {
-            const percent = Math.round(progress.loaded / progress.total * 100);
-            console.log('Loading phone model... ' + percent + '%');
-        },
+        undefined,
         (error) => {
             console.error('Error loading phone model:', error);
         }
@@ -450,13 +417,8 @@ function switchPhoneModel(deviceType) {
                     updateCanvas();
                 }
             }
-
-            console.log(deviceType + ' model loaded successfully');
         },
-        (progress) => {
-            const percent = Math.round(progress.loaded / progress.total * 100);
-            console.log('Loading ' + deviceType + ' model... ' + percent + '%');
-        },
+        undefined,
         (error) => {
             console.error('Error loading ' + deviceType + ' model:', error);
         }
@@ -542,7 +504,6 @@ function loadCachedPhoneModel(deviceType) {
                     loading: false
                 };
 
-                console.log('Cached ' + deviceType + ' model for side previews');
                 resolve(phoneModelCache[deviceType]);
             },
             undefined,
@@ -607,8 +568,6 @@ function createScreenOverlay() {
     // basePositionOffset is no longer needed since we use pivot-based rotation
     basePositionOffset.y = 0;
 
-    console.log('Created screen overlay for ' + currentDeviceModel + ' at:', customScreenPlane.position);
-    console.log('Plane size:', planeWidth.toFixed(4), 'x', planeHeight.toFixed(4));
 }
 
 // Create a rounded corner version of the screenshot
