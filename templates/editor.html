@@ -204,6 +204,10 @@
             <div class="sidebar-footer">
                 <div class="export-output-section">
                     <div class="export-row">
+                        <button class="export-btn secondary save-project-btn" id="save-project-btn" title="Save project changes">
+                            <span class="save-project-label">Save</span>
+                            <span class="save-project-dot" id="save-project-dot" aria-hidden="true"></span>
+                        </button>
                         <div class="output-size-dropdown" id="output-size-dropdown">
                             <button class="output-size-trigger" id="output-size-trigger">
                                 <div class="output-size-info">
@@ -640,26 +644,38 @@
 
                 <div class="control-group" id="device-2d-model-group">
                     <label class="control-label">2D Device Model</label>
-                    <select id="device-2d-model">
-                        <option value="samsung-galaxy-s24-ultra-2024-medium">Samsung Galaxy S24 Ultra</option>
-                        <option value="samsung-galaxy-s24-2024-medium">Samsung Galaxy S24</option>
-                        <option value="google-pixel-8-2024-medium">Google Pixel 8</option>
-                        <option value="apple-iphone-air-2025-medium">Apple iPhone Air</option>
-                        <option value="apple-iphone-16-pro-max-2024-medium">Apple iPhone 16 Pro Max</option>
-                        <option value="apple-iphone-16-plus-2024-medium">Apple iPhone 16 Plus</option>
-                        <option value="apple-iphone-16-2024-medium">Apple iPhone 16</option>
-                        <option value="apple-iphone-14-pro-max-2022-medium">Apple iPhone 14 Pro Max</option>
-                        <option value="apple-iphone-14-pro-2022-medium">Apple iPhone 14 Pro</option>
-                        <option value="apple-iphone-14-max-2022-medium">Apple iPhone 14 Max</option>
-                        <option value="apple-iphone-14-2022-medium">Apple iPhone 14</option>
-                        <option value="apple-iphone-15-pro-max-2023-medium">Apple iPhone 15 Pro Max</option>
-                        <option value="apple-iphone-15-pro-2023-medium">Apple iPhone 15 Pro</option>
-                        <option value="apple-iphone-15-plus-2023-medium">Apple iPhone 15 Plus</option>
-                        <option value="apple-iphone-15-2023-medium">Apple iPhone 15</option>
-                        <option value="apple-iphone-17-pro-max-2025-medium">Apple iPhone 17 Pro Max</option>
-                        <option value="apple-iphone-17-pro-2025-medium">Apple iPhone 17 Pro</option>
-                        <option value="apple-iphone-17-2025-medium">Apple iPhone 17</option>
-                    </select>
+                    <div class="device-model-row">
+                        <div class="device-model-column">
+                            <label class="control-label" for="device-2d-model-ios">iOS</label>
+                            <select id="device-2d-model-ios">
+                                <option value="">iOS devices</option>
+                                <option value="apple-iphone-air-2025-medium">iPhone Air</option>
+                                <option value="apple-iphone-16-pro-max-2024-medium">iPhone 16 Pro Max</option>
+                                <option value="apple-iphone-16-plus-2024-medium">iPhone 16 Plus</option>
+                                <option value="apple-iphone-16-2024-medium">iPhone 16</option>
+                                <option value="apple-iphone-14-pro-max-2022-medium">iPhone 14 Pro Max</option>
+                                <option value="apple-iphone-14-pro-2022-medium">iPhone 14 Pro</option>
+                                <option value="apple-iphone-14-max-2022-medium">iPhone 14 Max</option>
+                                <option value="apple-iphone-14-2022-medium">iPhone 14</option>
+                                <option value="apple-iphone-15-pro-max-2023-medium">iPhone 15 Pro Max</option>
+                                <option value="apple-iphone-15-pro-2023-medium">iPhone 15 Pro</option>
+                                <option value="apple-iphone-15-plus-2023-medium">iPhone 15 Plus</option>
+                                <option value="apple-iphone-15-2023-medium">iPhone 15</option>
+                                <option value="apple-iphone-17-pro-max-2025-medium">iPhone 17 Pro Max</option>
+                                <option value="apple-iphone-17-pro-2025-medium">iPhone 17 Pro</option>
+                                <option value="apple-iphone-17-2025-medium">iPhone 17</option>
+                            </select>
+                        </div>
+                        <div class="device-model-column">
+                            <label class="control-label" for="device-2d-model-android">Android</label>
+                            <select id="device-2d-model-android">
+                                <option value="">Android devices</option>
+                                <option value="samsung-galaxy-s24-ultra-2024-medium">Samsung Galaxy S24 Ultra</option>
+                                <option value="samsung-galaxy-s24-2024-medium">Samsung Galaxy S24</option>
+                                <option value="google-pixel-8-2024-medium">Google Pixel 8</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="rotation-3d-options" style="display: none;">
@@ -1975,15 +1991,15 @@
             </div>
             <h3 class="modal-title">App Preview Generator</h3>
             <p class="modal-message" style="margin-bottom: 12px; text-align: left;">
-                • <strong>Projects (left panel):</strong> Create, rename, and delete projects. Add screenshots, reorder them, and switch languages.<br>
-                • <strong>Preview (center canvas):</strong> See changes live. Right-click a screen to manage translations, replace, download, duplicate, or remove it.<br>
-                • <strong>Editor (right panel):</strong> Fine-tune background, device frame, text, elements, and popouts.<br>
-                • <strong>Background options:</strong> Use gradients (with presets/stops), solid colors, or images with blur, overlay, and optional noise.<br>
-                • <strong>Device options:</strong> Choose 2D/3D mode, adjust position, corner radius, shadow, and border.<br>
-                • <strong>Text options:</strong> Edit headline/subheadline, pick fonts, apply styles, and customize layout per language.<br>
-                • <strong>Languages & AI:</strong> Manage multilingual text and translate with AI providers (Anthropic, OpenAI, Google) from Settings.<br>
-                • <strong>Keyboard shortcuts:</strong> Undo <code>Ctrl+Z</code> / <code>⌘Z</code>. Redo <code>Ctrl+Y</code> or <code>Ctrl+Shift+Z</code> / <code>⌘Shift+Z</code>.<br>
-                • <strong>Export:</strong> Pick an output size and export the full set as a ZIP.
+                • <strong>Projects (Left Panel):</strong> Manage your projects, add and reorder screenshots, and switch between languages.<br>
+                • <strong>Preview (Center Canvas):</strong> View changes in real-time. Right-click any screen to manage translations, replace images, download, duplicate, or remove it.<br>
+                • <strong>Editor (Right Panel):</strong> Customize backgrounds, device frames, text styling, and decorative elements.<br>
+                • <strong>Backgrounds:</strong> Apply solid colors, adjust gradient presets, or use images with blur, overlays, and noise effects.<br>
+                • <strong>Devices:</strong> Switch between 2D and 3D modes. Adjust the device position, corner radius, shadow, and borders.<br>
+                • <strong>Typography:</strong> Edit your headlines and subheadlines. Choose fonts, apply text styles, and customize layouts for each language.<br>
+                • <strong>Languages & AI:</strong> Manage multilingual text and auto-translate your content using AI (Anthropic, OpenAI, Google) via Settings.<br>
+                • <strong>Shortcuts:</strong> Undo with <code>Ctrl+Z</code> (<code>⌘Z</code>). Redo with <code>Ctrl+Shift+Z</code> (<code>⌘Shift+Z</code>).<br>
+                • <strong>Export:</strong> Choose your desired output size and download your complete set as a ZIP file.
             </p>
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-confirm" id="about-modal-close" style="background: var(--accent);">Close</button>

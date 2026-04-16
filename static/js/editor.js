@@ -2764,10 +2764,39 @@ const META_STORE = 'meta';
 let currentProjectId = null;
 let projects = [];
 const pendingSaveTimers = new Map();
+let hasUnsavedChanges = false;
+let lastSavedSnapshotSignature = '';
 const requestedProjectId = (() => {
     const match = window.location.pathname.match(/^\/editor\/([0-9a-fA-F-]{36})\/?$/);
     return match ? match[1] : null;
 })();
+
+function getSnapshotSignature(snapshot = buildSerializableStateSnapshot()) {
+    return JSON.stringify(snapshot);
+}
+
+function updateSaveButtonState() {
+    const saveBtn = document.getElementById('save-project-btn');
+    if (!saveBtn) return;
+
+    saveBtn.classList.toggle('has-unsaved', hasUnsavedChanges);
+}
+
+function syncUnsavedChanges(snapshot = buildSerializableStateSnapshot()) {
+    if (isInitialLoadInProgress || editorHistory.applying) return;
+
+    const isDirty = getSnapshotSignature(snapshot) !== lastSavedSnapshotSignature;
+    if (hasUnsavedChanges === isDirty) return;
+
+    hasUnsavedChanges = isDirty;
+    updateSaveButtonState();
+}
+
+function commitSavedSnapshot(snapshot = buildSerializableStateSnapshot()) {
+    lastSavedSnapshotSignature = getSnapshotSignature(snapshot);
+    hasUnsavedChanges = false;
+    updateSaveButtonState();
+}
 
 async function apiRequest(path, options = {}) {
     const isFormData = options.body instanceof FormData;
@@ -2795,9 +2824,10 @@ async function apiRequest(path, options = {}) {
     return response.json();
 }
 
-function scheduleServerSave(snapshot, projectId) {
+function scheduleServerSave(snapshot, projectId, options = {}) {
     const targetProjectId = projectId ?? currentProjectId;
     if (!targetProjectId) return;
+    const delayMs = typeof options.delayMs === 'number' ? options.delayMs : 500;
 
     if (pendingSaveTimers.has(targetProjectId)) {
         clearTimeout(pendingSaveTimers.get(targetProjectId));
@@ -2816,7 +2846,7 @@ function scheduleServerSave(snapshot, projectId) {
         } finally {
             pendingSaveTimers.delete(targetProjectId);
         }
-    }, 500);
+    }, delayMs);
 
     pendingSaveTimers.set(targetProjectId, timerId);
 }
@@ -3460,7 +3490,7 @@ function applySerializableStateSnapshot(snapshot) {
     syncUIWithState();
     updateGradientStopsUI();
     updateCanvas();
-    saveState({ skipHistory: true });
+    commitSavedSnapshot(buildSerializableStateSnapshot());
 }
 
 function undoEditorState() {
@@ -3524,12 +3554,20 @@ function setupKeyboardShortcuts() {
 
 // Save state to IndexedDB for current project
 function saveState(options = {}) {
+    const shouldPersist = !!options.persist;
     const stateToSave = buildSerializableStateSnapshot();
     if (!options.skipHistory) {
         pushHistorySnapshot(stateToSave);
     }
 
-    scheduleServerSave(stateToSave, currentProjectId);
+    if (!shouldPersist) {
+        syncUnsavedChanges(stateToSave);
+        return;
+    }
+
+    scheduleServerSave(stateToSave, currentProjectId, { delayMs: 0 });
+
+    commitSavedSnapshot(stateToSave);
 
     if (!db) return;
 
@@ -3821,6 +3859,8 @@ async function loadState() {
                     resetStateToDefaults();
                     updateScreenshotList();
                 }
+
+                commitSavedSnapshot(buildSerializableStateSnapshot());
                 resolve();
             };
 
@@ -3956,7 +3996,7 @@ function resetStateToDefaults() {
 // Switch to a different project
 async function switchProject(projectId) {
     // Save current project first
-    saveState();
+    saveState({ persist: true, skipHistory: true, suppressDirty: true });
 
     currentProjectId = projectId;
     window.history.replaceState({}, '', `/editor/${projectId}/`);
@@ -3972,6 +4012,7 @@ async function switchProject(projectId) {
     updateProjectSelector();
     updateCanvas();
     resetHistoryFromCurrentState();
+    commitSavedSnapshot(buildSerializableStateSnapshot());
 }
 
 // Create a new project
@@ -6513,6 +6554,14 @@ function setupEventListeners() {
             document.getElementById('settings-modal').classList.remove('visible');
         }
     });
+
+    const saveProjectBtn = document.getElementById('save-project-btn');
+    if (saveProjectBtn) {
+        saveProjectBtn.addEventListener('click', () => {
+            saveState({ persist: true, suppressDirty: true });
+        });
+    }
+    updateSaveButtonState();
 
     // Output size dropdown
     const outputDropdown = document.getElementById('output-size-dropdown');
@@ -9569,7 +9618,7 @@ function updateCanvas(options = {}) {
     const skipInlinePreviews = !!options.skipInlinePreviews;
 
     if (!skipSave) {
-        saveState(); // Persist state on every update
+        syncUnsavedChanges();
     }
     const dims = getCanvasDimensions();
     canvas.width = dims.width;

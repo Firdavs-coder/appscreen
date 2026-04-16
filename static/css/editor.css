@@ -784,6 +784,21 @@ html.tauri-app .right-sidebar {
     text-align: right;
 }
 
+.device-model-row {
+    display: flex;
+    gap: 10px;
+}
+
+.device-model-column {
+    flex: 1;
+    min-width: 0;
+}
+
+.device-model-column .control-label {
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
 .slider-reset-btn {
     width: 18px;
     height: 18px;
@@ -1396,6 +1411,49 @@ input[type="range"]::-webkit-slider-thumb {
 .output-size-dropdown {
     flex: 1;
     position: relative;
+}
+
+.save-project-btn {
+    min-width: 84px;
+    padding: 8px 12px;
+    gap: 8px;
+}
+
+.save-project-label {
+    line-height: 1;
+}
+
+.save-project-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff3b30;
+    opacity: 0;
+    transform: scale(0.75);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.save-project-btn.has-unsaved .save-project-dot {
+    opacity: 1;
+    transform: scale(1);
+    animation: save-project-dot-blink 1.1s ease-in-out infinite;
+    box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.35);
+}
+
+@keyframes save-project-dot-blink {
+
+    0%,
+    100% {
+        opacity: 0.35;
+        transform: scale(0.82);
+        box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.2);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1);
+        box-shadow: 0 0 0 5px rgba(255, 59, 48, 0);
+    }
 }
 
 .output-size-trigger {
