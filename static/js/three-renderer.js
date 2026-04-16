@@ -680,7 +680,6 @@ function updateScreenTexture() {
     if (customScreenPlane) {
         customScreenPlane.material.dispose();
         customScreenPlane.material = screenMaterial;
-        console.log('Applied rounded texture to custom screen plane');
     }
 
     // Trigger render update
@@ -694,8 +693,6 @@ function setThreeJSRotation(rotX, rotY, rotZ) {
     // Add the device's base model rotation to the user's rotation
     const config = deviceConfigs[currentDeviceModel] || deviceConfigs.iphone;
     const modelRot = config.modelRotation || { x: 0, y: 0, z: 0 };
-
-    console.log('setThreeJSRotation:', currentDeviceModel, 'modelRot:', modelRot, 'user:', rotX, rotY, rotZ);
 
     // Rotate the pivot (which rotates around the screen center)
     phonePivot.rotation.x = (rotX + modelRot.x) * Math.PI / 180;
@@ -1169,7 +1166,11 @@ function setup3DCanvasInteraction() {
             requestAnimationFrame(() => {
                 dragUpdatePending = false;
                 if (typeof updateCanvas === 'function') {
-                    updateCanvas({ skipSave: true, skipInlinePreviews: true });
+                    updateCanvas({
+                        skipSave: true,
+                        skipInlinePreviews: true,
+                        skip3DTextureUpdate: true
+                    });
                 }
             });
         }

@@ -1,6 +1,7 @@
 function updateCanvas(options = {}) {
     const skipSave = !!options.skipSave;
     const skipInlinePreviews = !!options.skipInlinePreviews;
+    const skip3DTextureUpdate = !!options.skip3DTextureUpdate;
 
     // During dragging, queue render for next frame instead of rendering immediately
     if (isDragging && !options.forceImmediate) {
@@ -63,7 +64,7 @@ function updateCanvas(options = {}) {
         const use3D = ss.use3D || false;
         if (use3D && img && typeof renderThreeJSToCanvas === 'function' && phoneModelLoaded) {
             // In 3D mode, update the screen texture and render the phone model
-            if (typeof updateScreenTexture === 'function') {
+            if (!skip3DTextureUpdate && typeof updateScreenTexture === 'function') {
                 updateScreenTexture();
             }
             renderThreeJSToCanvas(canvas, dims.width, dims.height);

@@ -38,7 +38,7 @@ const state = {
             cornerRadius: 24,
             use3D: false,
             device3D: 'iphone',
-            device2D: 'iphone-15-pro-max',
+            device2D: 'apple-iphone-15-pro-max-2023-medium',
             rotation3D: { x: 0, y: 0, z: 0 },
             shadow: {
                 enabled: true,
@@ -149,13 +149,13 @@ function getScreenshotSettings() {
             screenshot.screenshot = JSON.parse(JSON.stringify(state.defaults.screenshot));
         }
         if (!screenshot.screenshot.device2D) {
-            screenshot.screenshot.device2D = state.defaults.screenshot.device2D || 'iphone-15-pro-max';
+            screenshot.screenshot.device2D = state.defaults.screenshot.device2D || 'apple-iphone-15-pro-max-2023-medium';
         }
         return screenshot.screenshot;
     }
 
     if (!state.defaults.screenshot.device2D) {
-        state.defaults.screenshot.device2D = 'iphone-15-pro-max';
+        state.defaults.screenshot.device2D = 'apple-iphone-15-pro-max-2023-medium';
     }
     return state.defaults.screenshot;
 }
@@ -2595,13 +2595,58 @@ const twoDDeviceModels = {
     }
 };
 
+const legacyTwoDDeviceModelIds = {
+    'iphone-15-pro-max': 'apple-iphone-15-pro-max-2023-medium',
+    'iphone-15-pro': 'apple-iphone-15-pro-2023-medium',
+    'iphone-15-plus': 'apple-iphone-15-plus-2023-medium',
+    'iphone-15': 'apple-iphone-15-2023-medium',
+    'iphone-14-pro-max': 'apple-iphone-14-pro-max-2022-medium',
+    'iphone-14-pro': 'apple-iphone-14-pro-2022-medium',
+    'iphone-14-plus': 'apple-iphone-14-max-2022-medium',
+    'iphone-14': 'apple-iphone-14-2022-medium'
+};
+
+function normalize2DDeviceModelId(modelId) {
+    if (!modelId) {
+        return 'apple-iphone-15-pro-max-2023-medium';
+    }
+
+    const normalized = legacyTwoDDeviceModelIds[modelId] || modelId;
+    if (twoDDeviceModels[normalized]) {
+        return normalized;
+    }
+
+    return 'apple-iphone-15-pro-max-2023-medium';
+}
+
+function update2DDeviceModelSelectors(modelId) {
+    const normalizedModelId = normalize2DDeviceModelId(modelId);
+    const iosSelect = document.getElementById('device-2d-model-ios');
+    const androidSelect = document.getElementById('device-2d-model-android');
+
+    if (!iosSelect || !androidSelect) {
+        return;
+    }
+
+    const iosOptionExists = !!iosSelect.querySelector(`option[value="${normalizedModelId}"]`);
+    const androidOptionExists = !!androidSelect.querySelector(`option[value="${normalizedModelId}"]`);
+
+    iosSelect.value = iosOptionExists ? normalizedModelId : '';
+    androidSelect.value = androidOptionExists ? normalizedModelId : '';
+
+    if (typeof refreshCustomSelect === 'function') {
+        refreshCustomSelect(iosSelect);
+        refreshCustomSelect(androidSelect);
+    }
+}
+
 function get2DDeviceModelId(settings = getScreenshotSettings()) {
-    return settings?.device2D || state.defaults.screenshot.device2D || 'samsung-galaxy-s24-ultra-2024-medium';
+    return normalize2DDeviceModelId(settings?.device2D || state.defaults.screenshot.device2D);
 }
 
 function get2DDeviceModel(settings = getScreenshotSettings()) {
     const modelId = get2DDeviceModelId(settings);
-    return twoDDeviceModels[modelId] || twoDDeviceModels['samsung-galaxy-s24-ultra-2024-medium'];
+    return twoDDeviceModels[modelId] || twoDDeviceModels['apple-iphone-15-pro-max-2023-medium'];
 }
 
 function ensure2DDeviceFrameImage(model) {
@@ -2640,8 +2685,10 @@ function get2DDeviceLayoutForScreen(model, screenX, screenY, screenWidth, screen
     const frameX = screenX - model.screen.x * frameWidth;
     const frameY = screenY - model.screen.y * frameHeight;
 
-    const cornerRadiusScale = Math.max(0, (settings?.cornerRadius ?? 24) / 24);
-    const screenRadius = (model.screenCornerRadiusRatio || 0.14) * screenWidth * cornerRadiusScale;
+    // Keep 2D model clipping aligned to the model's real screen geometry.
+    // Do not scale this with the generic corner-radius slider, otherwise
+    // screenshot corners can drift from the frame mask and look misaligned.
+    const screenRadius = (model.screenCornerRadiusRatio || 0.14) * screenWidth;
     const frameRadius = (model.frameCornerRadiusRatio || 0.16) * frameWidth;
 
     return {
@@ -3934,7 +3981,7 @@ function resetStateToDefaults() {
             cornerRadius: 24,
             use3D: false,
             device3D: 'iphone',
-            device2D: 'iphone-15-pro-max',
+            device2D: 'apple-iphone-15-pro-max-2023-medium',
             rotation3D: { x: 0, y: 0, z: 0 },
             shadow: {
                 enabled: true,
@@ -4378,13 +4425,7 @@ function syncUIWithState() {
     document.querySelectorAll('#device-3d-selector button').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.model === device3D);
     });
-    const device2DSelect = document.getElementById('device-2d-model');
-    if (device2DSelect) {
-        device2DSelect.value = device2D;
-        if (typeof refreshCustomSelect === 'function') {
-            refreshCustomSelect(device2DSelect);
-        }
-    }
+    update2DDeviceModelSelectors(device2D);
     updateFrameColorSwatches(device3D, ss.frameColor);
     document.getElementById('rotation-3d-options').style.display = use3D ? 'block' : 'none';
     document.getElementById('rotation-3d-x').value = rotation3D.x;
@@ -7321,10 +7362,37 @@ function setupEventListeners() {
         });
     });
 
-    // 2D device model selector
-    document.getElementById('device-2d-model')?.addEventListener('change', (e) => {
-        const modelId = e.target.value || 'iphone-15-pro-max';
+    // 2D device model selectors
+    const device2DIosSelect = document.getElementById('device-2d-model-ios');
+    const device2DAndroidSelect = document.getElementById('device-2d-model-android');
+
+    device2DIosSelect?.addEventListener('change', (e) => {
+        const rawValue = e.target.value;
+        if (!rawValue) return;
+        const modelId = normalize2DDeviceModelId(rawValue);
+        if (device2DAndroidSelect) {
+            device2DAndroidSelect.value = '';
+            if (typeof refreshCustomSelect === 'function') {
+                refreshCustomSelect(device2DAndroidSelect);
+            }
+        }
         setScreenshotSetting('device2D', modelId);
+        update2DDeviceModelSelectors(modelId);
+        updateCanvas();
+    });
+
+    device2DAndroidSelect?.addEventListener('change', (e) => {
+        const rawValue = e.target.value;
+        if (!rawValue) return;
+        const modelId = normalize2DDeviceModelId(rawValue);
+        if (device2DIosSelect) {
+            device2DIosSelect.value = '';
+            if (typeof refreshCustomSelect === 'function') {
+                refreshCustomSelect(device2DIosSelect);
+            }
+        }
+        setScreenshotSetting('device2D', modelId);
+        update2DDeviceModelSelectors(modelId);
         updateCanvas();
     });
 
@@ -9616,6 +9684,7 @@ function getCanvasDimensions() {
 function updateCanvas(options = {}) {
     const skipSave = !!options.skipSave;
     const skipInlinePreviews = !!options.skipInlinePreviews;
+    const skip3DTextureUpdate = !!options.skip3DTextureUpdate;
 
     if (!skipSave) {
         syncUnsavedChanges();
@@ -9667,7 +9736,7 @@ function updateCanvas(options = {}) {
         const use3D = ss.use3D || false;
         if (use3D && img && typeof renderThreeJSToCanvas === 'function' && phoneModelLoaded) {
             // In 3D mode, update the screen texture and render the phone model
-            if (typeof updateScreenTexture === 'function') {
+            if (!skip3DTextureUpdate && typeof updateScreenTexture === 'function') {
                 updateScreenTexture();
             }
             renderThreeJSToCanvas(canvas, dims.width, dims.height);
