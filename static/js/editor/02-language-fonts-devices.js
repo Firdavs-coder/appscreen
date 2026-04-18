@@ -1108,14 +1108,23 @@ function drawImageCoverToRect(context, image, x, y, width, height) {
 function draw2DFramedScreenshotToRect(context, dims, image, modelLayout, frameImage) {
     if (!context || !dims || !image || !modelLayout || !frameImage) return;
 
-    // Draw directly into a tight rounded clip. This prevents screenshot bleed when
-    // frame PNGs have transparent/non-opaque regions outside the actual display area.
-    const bleedGuard = Math.max(1, Math.round(Math.min(modelLayout.screenWidth, modelLayout.screenHeight) * 0.005));
-    const screenX = modelLayout.screenX + bleedGuard;
-    const screenY = modelLayout.screenY + bleedGuard;
-    const screenWidth = Math.max(0, modelLayout.screenWidth - bleedGuard * 2);
-    const screenHeight = Math.max(0, modelLayout.screenHeight - bleedGuard * 2);
-    const screenRadius = Math.max(0, (modelLayout.screenRadius || 0) - bleedGuard);
+    // Draw with an outward bleed so tiny per-device alignment differences in
+    // frame metadata cannot create visible gaps at the screen edge.
+    // The frame PNG is rendered on top, so this hidden overscan is safe.
+    const baseScreenX = modelLayout.screenX;
+    const baseScreenY = modelLayout.screenY;
+    const baseScreenWidth = modelLayout.screenWidth;
+    const baseScreenHeight = modelLayout.screenHeight;
+    const bleed = Math.max(2, Math.round(Math.min(baseScreenWidth, baseScreenHeight) * 0.02));
+
+    const screenX = baseScreenX - bleed;
+    const screenY = baseScreenY - bleed;
+    const screenWidth = Math.max(0, baseScreenWidth + bleed * 2);
+    const screenHeight = Math.max(0, baseScreenHeight + bleed * 2);
+
+    // Increase radius together with bleed so corners stay filled.
+    const baseRadius = modelLayout.screenRadius || 0;
+    const screenRadius = baseRadius + bleed;
 
     if (screenWidth <= 0 || screenHeight <= 0) return;
 

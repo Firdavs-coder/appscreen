@@ -7,6 +7,7 @@ let phoneModel = null;
 let phonePivot = null;  // Pivot group for rotation around screen center
 let screenMesh = null;
 let customScreenPlane = null;
+let screenLayout = null;
 let isThreeJSInitialized = false;
 let phoneModelLoaded = false;
 let phoneModelLoading = false;
@@ -198,6 +199,95 @@ function initThreeJS() {
     animateThreeJS();
 }
 
+function getFallbackScreenLayout(config) {
+    const aspectRatio = config.aspectRatio;
+    const planeHeight = 4.3 * config.screenHeightFactor;
+    const planeWidth = planeHeight * aspectRatio;
+
+    return {
+        planeWidth,
+        planeHeight,
+        offset: {
+            x: config.screenOffset.x,
+            y: config.screenOffset.y,
+            z: config.screenOffset.z
+        }
+    };
+}
+
+function findBestScreenMesh(model) {
+    let bestMesh = null;
+    let bestScore = -Infinity;
+
+    model.traverse((child) => {
+        if (!child.isMesh || !child.geometry) return;
+
+        child.geometry.computeBoundingBox();
+        const box = child.geometry.boundingBox;
+        if (!box) return;
+
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const area = size.x * size.y;
+        if (!Number.isFinite(area) || area <= 0) return;
+
+        const name = (child.name || '').toLowerCase();
+        const matName = (child.material?.name || '').toLowerCase();
+
+        let score = area;
+        if (matName.includes('glass')) score *= 4;
+        if (name.includes('screen') || name.includes('display')) score *= 5;
+        if (matName.includes('screen') || matName.includes('display')) score *= 5;
+        if (name.includes('front') || matName.includes('front')) score *= 1.5;
+        if (name.includes('back') || matName.includes('back')) score *= 0.2;
+        if (name.includes('camera') || matName.includes('camera')) score *= 0.15;
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestMesh = child;
+        }
+    });
+
+    return bestMesh;
+}
+
+function computeScreenLayoutFromMesh(model, targetMesh) {
+    if (!model || !targetMesh?.geometry) return null;
+
+    targetMesh.geometry.computeBoundingBox();
+    const localBox = targetMesh.geometry.boundingBox;
+    if (!localBox) return null;
+
+    model.updateMatrixWorld(true);
+
+    const modelWorldInverse = new THREE.Matrix4().copy(model.matrixWorld).invert();
+    const meshToModelMatrix = new THREE.Matrix4().multiplyMatrices(modelWorldInverse, targetMesh.matrixWorld);
+    const bounds = localBox.clone().applyMatrix4(meshToModelMatrix);
+
+    const size = bounds.getSize(new THREE.Vector3());
+    if (size.x <= 0 || size.y <= 0) return null;
+
+    const center = bounds.getCenter(new THREE.Vector3());
+
+    // Slightly overscan and push forward to avoid visible seams at the edges.
+    const overscan = 1.008;
+    const zPush = 0.002;
+
+    return {
+        planeWidth: size.x * overscan,
+        planeHeight: size.y * overscan,
+        offset: {
+            x: center.x,
+            y: center.y,
+            z: bounds.max.z + zPush
+        }
+    };
+}
+
+function resolveScreenLayout(model, config, preferredMesh) {
+    return computeScreenLayoutFromMesh(model, preferredMesh) || getFallbackScreenLayout(config);
+}
+
 // Load the phone 3D model based on currentDeviceModel
 function loadPhoneModel() {
     if (phoneModelLoading) return; // Prevent double loading
@@ -225,46 +315,13 @@ function loadPhoneModel() {
             baseModelScale = 3.75 / maxDim;
             phoneModel.scale.setScalar(baseModelScale);
 
-            // Find a likely screen mesh as fallback
-            phoneModel.traverse((child) => {
-                if (child.isMesh) {
-                    const name = (child.name || '').toLowerCase();
-                    const matName = (child.material?.name || '').toLowerCase();
-
-                    if (name.includes('screen') || name.includes('display') ||
-                        matName.includes('screen') || matName.includes('display') ||
-                        matName.includes('emission') || matName.includes('emissive')) {
-                        screenMesh = child;
-                    }
-                }
-            });
-
-            // Find the front glass - that's where the screen actually is
-            // Don't use black meshes, those are small elements like notch/dynamic island
-            let glassMeshes = [];
-            phoneModel.traverse((child) => {
-                if (child.isMesh) {
-                    const matName = (child.material?.name || '').toLowerCase();
-                    if (matName === 'glass') {
-                        child.geometry.computeBoundingBox();
-                        const box = child.geometry.boundingBox;
-                        const size = new THREE.Vector3();
-                        box.getSize(size);
-                        const area = size.x * size.y;
-                        glassMeshes.push({ mesh: child, area, size });
-                    }
-                }
-            });
-
-            // Use the largest glass mesh (front screen glass)
-            if (glassMeshes.length > 0) {
-                glassMeshes.sort((a, b) => b.area - a.area);
-                screenMesh = glassMeshes[0].mesh;
-            }
+            // Detect actual screen area from model geometry.
+            screenMesh = findBestScreenMesh(phoneModel);
+            screenLayout = resolveScreenLayout(phoneModel, config, screenMesh);
 
             // Create a pivot group for rotation around screen center
             const config = deviceConfigs[currentDeviceModel] || deviceConfigs.iphone;
-            const screenOffset = config.screenOffset;
+            const screenOffset = screenLayout.offset;
             const centeredPosition = phoneModel.position.clone();
 
             phonePivot = new THREE.Group();
@@ -376,8 +433,12 @@ function switchPhoneModel(deviceType) {
             baseModelScale = 3.75 / maxDim;
             phoneModel.scale.setScalar(baseModelScale);
 
+            // Detect actual screen area from model geometry.
+            screenMesh = findBestScreenMesh(phoneModel);
+            screenLayout = resolveScreenLayout(phoneModel, config, screenMesh);
+
             // Create a pivot group for rotation around screen center
-            const screenOffset = config.screenOffset;
+            const screenOffset = screenLayout.offset;
             const centeredPosition = phoneModel.position.clone();
             phonePivot = new THREE.Group();
 
@@ -459,8 +520,12 @@ function loadCachedPhoneModel(deviceType) {
                 const modelBaseScale = 3.75 / maxDim;
                 model.scale.setScalar(modelBaseScale);
 
+                // Detect actual screen area for this cached model.
+                const cachedScreenMesh = findBestScreenMesh(model);
+                const cachedLayout = resolveScreenLayout(model, config, cachedScreenMesh);
+
                 // Create pivot for this model
-                const screenOffset = config.screenOffset;
+                const screenOffset = cachedLayout.offset;
                 const pivot = new THREE.Group();
                 const centeredPosition = model.position.clone();
 
@@ -473,9 +538,8 @@ function loadCachedPhoneModel(deviceType) {
                 pivot.add(model);
 
                 // Create screen plane for this model
-                const aspectRatio = config.aspectRatio;
-                const planeHeight = 4.3 * config.screenHeightFactor;
-                const planeWidth = planeHeight * aspectRatio;
+                const planeHeight = cachedLayout.planeHeight;
+                const planeWidth = cachedLayout.planeWidth;
 
                 const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
                 const material = new THREE.MeshBasicMaterial({
@@ -499,6 +563,7 @@ function loadCachedPhoneModel(deviceType) {
                     model: model,
                     pivot: pivot,
                     screenPlane: screenPlane,
+                    screenLayout: cachedLayout,
                     baseScale: modelBaseScale,
                     loaded: true,
                     loading: false
@@ -535,11 +600,10 @@ function createScreenOverlay() {
     }
 
     const config = deviceConfigs[currentDeviceModel] || deviceConfigs.iphone;
+    const layout = screenLayout || getFallbackScreenLayout(config);
 
-    // Use device-specific aspect ratio and screen size
-    const aspectRatio = config.aspectRatio;
-    const planeHeight = 4.3 * config.screenHeightFactor;
-    const planeWidth = planeHeight * aspectRatio;
+    const planeHeight = layout.planeHeight;
+    const planeWidth = layout.planeWidth;
 
     const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
     const material = new THREE.MeshBasicMaterial({
@@ -550,7 +614,7 @@ function createScreenOverlay() {
     customScreenPlane = new THREE.Mesh(geometry, material);
 
     // Position at center of phone, slightly in front of glass
-    const screenOffset = config.screenOffset;
+    const screenOffset = layout.offset;
     customScreenPlane.position.set(screenOffset.x, screenOffset.y, screenOffset.z);
 
     // Counter-rotate the screen to cancel out the model's base rotation
