@@ -1076,7 +1076,8 @@ function drawScreenshot() {
     ctx.translate(-centerX, -centerY);
 
     // Draw shadow first (needs a filled shape, not clipped)
-    if (settings.shadow.enabled) {
+    // Skip generic shadow for 2D models to avoid artifacts
+    if (!has2DFrame && settings.shadow.enabled) {
         const shadowColor = hexToRgba(settings.shadow.color, settings.shadow.opacity / 100);
         ctx.shadowColor = shadowColor;
         ctx.shadowBlur = settings.shadow.blur;
@@ -1125,7 +1126,8 @@ function drawScreenshot() {
     }
 
     // Draw device frame if enabled (needs separate transform context)
-    if (settings.frame.enabled) {
+    // Skip for 2D models as they already include a frame
+    if (!has2DFrame && settings.frame.enabled) {
         ctx.save();
         ctx.translate(centerX, centerY);
         if (settings.rotation !== 0) {

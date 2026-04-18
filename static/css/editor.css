@@ -1221,7 +1221,7 @@ input[type="range"]::-webkit-slider-thumb {
     flex-shrink: 0;
     cursor: default;
     transition: box-shadow 0.2s ease, border-color 0.2s ease;
-    border: 2px solid transparent;
+    border: 0px;
 }
 
 .canvas-wrapper-inline {
@@ -1234,7 +1234,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 
 .canvas-wrapper.selected {
-    box-shadow: 0 12px 32px var(--shadow-heavy), 0 0 0 1px var(--accent);
+    box-shadow: 0 12px 32px var(--shadow-heavy);
 }
 
 .canvas-wrapper.sliding-out-left,

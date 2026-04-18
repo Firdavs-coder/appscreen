@@ -1052,9 +1052,10 @@ function get2DDeviceLayoutForScreen(model, screenX, screenY, screenWidth, screen
 
     const cornerRadiusScale = Math.max(0, (settings?.cornerRadius ?? 24) / 24);
 
-    // Device model ratios are authored as "soft" values; convert them to practical pixel radii
-    // for the current render size (instead of applying them directly as raw width fractions).
-    const ratioScale = 0.25;
+    // Device model ratios represent the actual corner-radius-to-screen-width fraction
+    // measured from the frame PNG.  Apply them directly (ratioScale = 1) so the clip
+    // path matches the physical device frame corners.
+    const ratioScale = 1.0;
     const screenRadiusRaw = (model.screenCornerRadiusRatio || 0.14) * screenWidth * ratioScale * cornerRadiusScale;
     const frameRadiusRaw = (model.frameCornerRadiusRatio || 0.16) * frameWidth * ratioScale;
     const screenRadius = Math.max(0, Math.min(screenRadiusRaw, Math.min(screenWidth, screenHeight) / 2));
@@ -1109,7 +1110,7 @@ function draw2DFramedScreenshotToRect(context, dims, image, modelLayout, frameIm
 
     // Draw directly into a tight rounded clip. This prevents screenshot bleed when
     // frame PNGs have transparent/non-opaque regions outside the actual display area.
-    const bleedGuard = Math.max(1, Math.round(Math.min(modelLayout.screenWidth, modelLayout.screenHeight) * 0.003));
+    const bleedGuard = Math.max(1, Math.round(Math.min(modelLayout.screenWidth, modelLayout.screenHeight) * 0.005));
     const screenX = modelLayout.screenX + bleedGuard;
     const screenY = modelLayout.screenY + bleedGuard;
     const screenWidth = Math.max(0, modelLayout.screenWidth - bleedGuard * 2);
