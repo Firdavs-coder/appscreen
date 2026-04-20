@@ -1467,6 +1467,17 @@ function duplicateScreenshot(index) {
         background: original.background,
         screenshot: original.screenshot,
         text: original.text,
+        elements: (original.elements || []).map(el => {
+            const copy = { ...el, image: undefined };
+            if ((el.type === 'graphic' || el.type === 'device') && el.image) {
+                copy.image = el.image;
+            } else if (el.type === 'icon' && el.image) {
+                copy.image = el.image;
+            }
+            copy.id = crypto.randomUUID();
+            return copy;
+        }),
+        popouts: [],
         overrides: original.overrides
     }));
 
