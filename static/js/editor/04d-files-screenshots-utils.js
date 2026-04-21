@@ -502,6 +502,7 @@ function updateScreenshotList() {
         });
 
         item.addEventListener('click', (e) => {
+            e.stopPropagation();
             if (e.target.closest('.screenshot-menu-wrapper') || e.target.closest('.drag-handle')) {
                 return;
             }

@@ -157,6 +157,7 @@ function updateInlinePreviews() {
         wrapper.addEventListener('click', (e) => {
             // Don't interfere with context menu
             if (e.button !== 0) return;
+            e.stopPropagation();
             selectInlineScreenshot(index);
         });
 

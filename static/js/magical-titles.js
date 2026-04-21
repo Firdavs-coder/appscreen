@@ -681,8 +681,16 @@ function toHexColor(r, g, b) {
     return '#' + [r, g, b].map(value => value.toString(16).padStart(2, '0')).join('');
 }
 
-function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
+function clamp(value, min, max, fallback = min) {
+    const numericValue = typeof value === 'string'
+        ? parseFloat(value.replace(',', '.'))
+        : Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+        return fallback;
+    }
+
+    return Math.max(min, Math.min(max, numericValue));
 }
 
 function mergeDeep(target, source) {
@@ -1113,9 +1121,11 @@ function applyGeneratedLayoutToScreenshot(screenshot, plan, sourceLang) {
     screenshot.screenshot.device3D = plan.screenshot?.device3D || screenshot.screenshot.device3D || 'iphone';
     screenshot.screenshot.device2D = preferredDevice2D;
     screenshot.screenshot.rotation3D = preservedRotation3D;
-    screenshot.screenshot.scale = clamp(Number(screenshot.screenshot.scale ?? 70), 30, 100);
-    screenshot.screenshot.rotation = clamp(Number(screenshot.screenshot.rotation ?? 0), -45, 45);
-    screenshot.screenshot.cornerRadius = clamp(Number(screenshot.screenshot.cornerRadius ?? 24), 0, 80);
+    screenshot.screenshot.x = clamp(screenshot.screenshot.x, 0, 100, 50);
+    screenshot.screenshot.y = clamp(screenshot.screenshot.y, 0, 100, 50);
+    screenshot.screenshot.scale = clamp(screenshot.screenshot.scale, 30, 100, 70);
+    screenshot.screenshot.rotation = clamp(screenshot.screenshot.rotation, -45, 45, 0);
+    screenshot.screenshot.cornerRadius = clamp(screenshot.screenshot.cornerRadius, 0, 80, 24);
 
     const text = screenshot.text ? normalizeTextSettings(screenshot.text) : normalizeTextSettings(state.defaults.text);
     const headline = plan.text?.headlines?.[sourceLang] || plan.text?.headline || '';
