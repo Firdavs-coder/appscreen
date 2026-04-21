@@ -1,4 +1,5 @@
 import json
+from urllib.parse import urlsplit
 
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.db.models import Sum, Count
@@ -41,6 +42,53 @@ def _media_file_to_dict(media_file):
         "size": media_file.size,
         "created_at": media_file.created_at.isoformat(),
     }
+
+
+def _normalize_media_url(value):
+    if not value or not isinstance(value, str):
+        return ''
+    parsed = urlsplit(value)
+    return parsed.path or value
+
+
+def _collect_string_values(data):
+    if isinstance(data, dict):
+        for value in data.values():
+            yield from _collect_string_values(value)
+    elif isinstance(data, list):
+        for value in data:
+            yield from _collect_string_values(value)
+    elif isinstance(data, str):
+        yield data
+
+
+def _delete_project_media_files(project):
+    project_payload = project.payload if isinstance(project.payload, dict) else {}
+    project_media_paths = {
+        _normalize_media_url(value)
+        for value in _collect_string_values(project_payload)
+        if _normalize_media_url(value)
+    }
+
+    if not project_media_paths:
+        return
+
+    other_payloads = Project.objects.filter(user=project.user).exclude(uuid=project.uuid).values_list("payload", flat=True)
+    other_media_paths = set()
+    for payload in other_payloads:
+        if isinstance(payload, dict):
+            for value in _collect_string_values(payload):
+                normalized_value = _normalize_media_url(value)
+                if normalized_value:
+                    other_media_paths.add(normalized_value)
+
+    for media_file in UserMediaFile.objects.filter(user=project.user):
+        media_path = _normalize_media_url(media_file.file.url)
+        if media_path not in project_media_paths or media_path in other_media_paths:
+            continue
+        if media_file.file:
+            media_file.file.delete(save=False)
+        media_file.delete()
 
 
 
@@ -145,6 +193,7 @@ def project_detail(request, project_id):
         return JsonResponse(_project_to_dict(project))
 
     elif request.method == "DELETE":
+        _delete_project_media_files(project)
         project.delete()
         return JsonResponse({}, status=204)
 
