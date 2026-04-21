@@ -915,6 +915,7 @@ function normalizeGeneratedPopout(popout, index) {
 }
 
 function buildAiLayoutPrompt(analysisScreens, sourceLang, sourceLangName) {
+    const preferredDevice2DModel = state.defaults?.screenshot?.device2D || 'apple-iphone-15-pro-max-2023-medium';
     const screenCount = analysisScreens.length;
     const screenSummaries = analysisScreens.map((screen) => {
         const palette = screen.palette?.length ? screen.palette.join(', ') : 'unknown';
@@ -935,7 +936,7 @@ Goal:
 - Write clear, concise headline and subheadline copy that matches the visible UI.
 - Make the headline feel like a hero banner: very large, bold, and readable from a distance.
 - Choose screenshot position and sizing so the device feels dominant and premium.
-- ALWAYS use a 3D device treatment and make the screenshot look like a real mockup, not a flat crop.
+- ALWAYS use a 2D device treatment and make the screenshot look like a real mockup, not a flat crop.
 - If helpful, add lightweight decorative elements such as icons, emojis, labels, shapes, arrows, or soft UI accents.
 
 Rules:
@@ -948,8 +949,8 @@ Rules:
 - Use hex colors only.
 - Keep screenshot settings within the editor's ranges: x/y 0-100, scale 30-100, rotation -45 to 45, cornerRadius 0-80, opacity 0-100.
 - Use position "top" or "bottom" only.
-- Use use3D=true for every screenshot.
-- Use device3D="iphone" unless another device is clearly more appropriate.
+- Use use3D=false for every screenshot.
+- Keep device2D="${preferredDevice2DModel}" so generated layouts match the project's existing 2D device framing.
 - Keep headlineSize and subheadlineSize substantially larger than body text; do not make text tiny.
 - Favor 1-3 line headlines and compact subheadlines.
 - Do not change rotation3D.x, rotation3D.y, or rotation3D.z from the existing screenshot values.
@@ -983,8 +984,8 @@ Return this schema:
         "rotation": 0,
         "perspective": 0,
         "cornerRadius": 24,
-                "use3D": true,
-        "device3D": "iphone",
+        "use3D": false,
+        "device2D": "${preferredDevice2DModel}",
         "shadow": {
           "enabled": true,
           "color": "#000000",
@@ -1092,6 +1093,10 @@ ${screenSummaries}`;
 function applyGeneratedLayoutToScreenshot(screenshot, plan, sourceLang) {
     if (!screenshot || !plan) return;
 
+    const preferredDevice2D = screenshot.screenshot?.device2D
+        || state.defaults?.screenshot?.device2D
+        || 'apple-iphone-15-pro-max-2023-medium';
+
     const preservedRotation3D = screenshot.screenshot?.rotation3D
         ? JSON.parse(JSON.stringify(screenshot.screenshot.rotation3D))
         : JSON.parse(JSON.stringify(state.defaults.screenshot.rotation3D || { x: 0, y: 0, z: 0 }));
@@ -1104,8 +1109,9 @@ function applyGeneratedLayoutToScreenshot(screenshot, plan, sourceLang) {
         screenshot.screenshot = mergeDeep(screenshot.screenshot || JSON.parse(JSON.stringify(state.defaults.screenshot)), plan.screenshot);
     }
 
-    screenshot.screenshot.use3D = plan.screenshot?.use3D !== false;
+    screenshot.screenshot.use3D = plan.screenshot?.use3D === true;
     screenshot.screenshot.device3D = plan.screenshot?.device3D || screenshot.screenshot.device3D || 'iphone';
+    screenshot.screenshot.device2D = preferredDevice2D;
     screenshot.screenshot.rotation3D = preservedRotation3D;
     screenshot.screenshot.scale = clamp(Number(screenshot.screenshot.scale ?? 70), 30, 100);
     screenshot.screenshot.rotation = clamp(Number(screenshot.screenshot.rotation ?? 0), -45, 45);
@@ -1176,6 +1182,68 @@ function applyGeneratedLayoutToScreenshot(screenshot, plan, sourceLang) {
             name: element.name || `AI Element ${index + 1}`
         }));
     }
+}
+
+function normalizeAiLayoutScreens(rawScreens, analysisScreens) {
+    const screens = Array.isArray(rawScreens) ? rawScreens : [];
+    const analysisList = Array.isArray(analysisScreens) ? analysisScreens : [];
+    const exactByIndex = new Map();
+    const oneBasedByIndex = new Map();
+
+    screens.forEach((screen) => {
+        const parsedIndex = Number(screen?.index);
+        if (!Number.isFinite(parsedIndex)) return;
+
+        if (!exactByIndex.has(parsedIndex)) {
+            exactByIndex.set(parsedIndex, screen);
+        }
+
+        const zeroBasedIndex = parsedIndex - 1;
+        if (zeroBasedIndex >= 0 && !oneBasedByIndex.has(zeroBasedIndex)) {
+            oneBasedByIndex.set(zeroBasedIndex, screen);
+        }
+    });
+
+    const usedScreens = new Set();
+
+    return analysisList.map((analysisScreen, position) => {
+        const targetIndex = Number(analysisScreen?.index);
+        let matched = null;
+
+        if (Number.isFinite(targetIndex) && exactByIndex.has(targetIndex)) {
+            const candidate = exactByIndex.get(targetIndex);
+            if (!usedScreens.has(candidate)) {
+                matched = candidate;
+            }
+        }
+
+        if (!matched && Number.isFinite(targetIndex) && oneBasedByIndex.has(targetIndex)) {
+            const candidate = oneBasedByIndex.get(targetIndex);
+            if (!usedScreens.has(candidate)) {
+                matched = candidate;
+            }
+        }
+
+        if (!matched) {
+            const positionalCandidate = screens[position];
+            if (positionalCandidate && !usedScreens.has(positionalCandidate)) {
+                matched = positionalCandidate;
+            }
+        }
+
+        if (!matched) {
+            matched = screens.find((screen) => !usedScreens.has(screen)) || null;
+        }
+
+        if (matched) {
+            usedScreens.add(matched);
+        }
+
+        return {
+            index: targetIndex,
+            plan: matched || {}
+        };
+    });
 }
 
 async function generateAiLayout() {
@@ -1262,9 +1330,11 @@ async function generateAiLayout() {
 
         updateStatus('Applying AI layout...', 'Updating screenshots');
 
+        const normalizedPlans = normalizeAiLayoutScreens(screens, analysis.screens);
+
         state.screenshots.forEach((screenshot, index) => {
-            const sourcePlan = screens.find(item => Number(item.index) === index) || screens[index] || {};
-            const plan = mergeDeep({}, sourcePlan);
+            const matchedPlan = normalizedPlans.find((entry) => entry.index === index)?.plan || {};
+            const plan = mergeDeep({}, matchedPlan);
             plan.background = mergeDeep(plan.background || {}, sharedBackgroundPatch);
             applyGeneratedLayoutToScreenshot(screenshot, plan, sourceLang);
         });

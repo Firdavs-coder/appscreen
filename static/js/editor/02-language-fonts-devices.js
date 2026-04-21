@@ -1,3 +1,6 @@
+// Editor Module 02: Language, fonts, and device catalog/config helpers.
+// Purpose: Provides supported language metadata, font/device options, and normalization utilities for UI controls.
+
 // Language catalog used across the editor UI
 const supportedLanguageCatalog = [
     { code: 'en', name: 'English (US)', flag: '🇺🇸' },

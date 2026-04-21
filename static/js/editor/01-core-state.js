@@ -1,3 +1,6 @@
+// Editor Module 01: Core state, defaults, and shared state helpers.
+// Purpose: Defines the global `state` object and foundational state utilities used by all other editor modules.
+
 // State management
 const state = {
     screenshots: [],

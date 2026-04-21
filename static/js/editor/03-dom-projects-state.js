@@ -1,3 +1,6 @@
+// Editor Module 03: DOM references, project persistence, and initialization flow.
+// Purpose: Manages editor DOM bindings, project load/save logic, history, and startup orchestration.
+
 // DOM elements
 const canvas = document.getElementById('preview-canvas');
 const ctx = canvas.getContext('2d');
@@ -223,7 +226,7 @@ async function applyMediaAsScreenshot(url, name) {
         updateScreenshotList();
         syncUIWithState();
         updateCanvas();
-        saveState();
+        saveState({ persist: true });
     } catch (e) {
         console.error('Unable to use media as screenshot:', e);
     }
@@ -252,7 +255,7 @@ async function replaceScreenshotWithMedia(index, url, name) {
         updateScreenshotList();
         syncUIWithState();
         updateCanvas();
-        saveState();
+        saveState({ persist: true });
     } catch (e) {
         console.error('Unable to replace screenshot with media:', e);
     }

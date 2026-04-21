@@ -208,8 +208,9 @@ function migrateScreenshotToLocalized(screenshot, detectedLang = 'en') {
  * @param {Image} image - The Image object
  * @param {string} src - Data URL of the image
  * @param {string} name - Filename
+ * @param {Object} [options] - Save behavior options
  */
-function addLocalizedImage(screenshotIndex, lang, image, src, name) {
+function addLocalizedImage(screenshotIndex, lang, image, src, name, options = {}) {
     const screenshot = state.screenshots[screenshotIndex];
     if (!screenshot) return;
 
@@ -231,7 +232,9 @@ function addLocalizedImage(screenshotIndex, lang, image, src, name) {
     // Update displays
     updateScreenshotList();
     updateCanvas();
-    saveState();
+    if (options.persist !== false) {
+        saveState({ persist: true });
+    }
 }
 
 /**
@@ -248,7 +251,7 @@ function removeLocalizedImage(screenshotIndex, lang) {
     // Update displays
     updateScreenshotList();
     updateCanvas();
-    saveState();
+    saveState({ persist: true });
 
     // Refresh modal if open
     if (currentTranslationsIndex === screenshotIndex) {

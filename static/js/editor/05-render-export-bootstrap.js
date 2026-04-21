@@ -1,3 +1,6 @@
+// Editor Module 05: Rendering, export, and bootstrap runtime.
+// Purpose: Renders canvas output, drives preview/export pipelines, and boots the editor after modules are loaded.
+
 function updateCanvas(options = {}) {
     const skipSave = !!options.skipSave;
     const skipInlinePreviews = !!options.skipInlinePreviews;
