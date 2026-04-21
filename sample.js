@@ -7,7 +7,7 @@ let phoneModel = null;
 let phonePivot = null;  // Pivot group for rotation around screen center
 let screenMesh = null;
 let customScreenPlane = null;
-let screenLayout = null;
+let orbitControls = null;
 let isThreeJSInitialized = false;
 let phoneModelLoaded = false;
 let phoneModelLoading = false;
@@ -50,7 +50,7 @@ const deviceConfigs = {
 };
 
 // Frame color presets per device (real device colors)
-// Using var so it's accessible from editor.js
+// Using var so it's accessible from app.js
 var frameColorPresets = {
     iphone: [
         { id: 'natural', label: 'Natural Titanium', swatch: '#9d927f',
@@ -87,6 +87,9 @@ var frameColorPresets = {
           materials: { back_glass: '#2a2a2a', frame: '#484848', antenna: '#353535' } },
     ]
 };
+
+// Store original material colors for the current model
+let originalMaterialColors = {};
 
 // Apply a frame color preset to the phone model
 function setPhoneFrameColor(presetId, deviceType) {
@@ -144,7 +147,7 @@ function initThreeJS() {
     threeScene.background = new THREE.Color(0x667eea); // Default gradient start color
 
     // Create camera
-    const aspect = 400 / 630;
+    const aspect = 400 / 700;
     threeCamera = new THREE.PerspectiveCamera(35, aspect, 0.1, 1000);
     threeCamera.position.set(0, 0, 6);
 
@@ -156,7 +159,7 @@ function initThreeJS() {
         preserveDrawingBuffer: true,
         powerPreference: 'high-performance'
     });
-    threeRenderer.setSize(400, 630);
+    threeRenderer.setSize(400, 700);
     // Use device pixel ratio of 1 for fastest interactive rendering
     threeRenderer.setPixelRatio(1);
     threeRenderer.outputEncoding = THREE.sRGBEncoding;
@@ -182,6 +185,18 @@ function initThreeJS() {
     rimLight.position.set(0, -2, -3);
     threeScene.add(rimLight);
 
+    // Add orbit controls (disabled - we use custom drag handling for better performance)
+    // orbitControls = new THREE.OrbitControls(threeCamera, threeRenderer.domElement);
+    // orbitControls.enableDamping = true;
+    // orbitControls.dampingFactor = 0.05;
+    // orbitControls.enableZoom = false;
+    // orbitControls.enablePan = false;
+    // orbitControls.rotateSpeed = 0.5;
+    // orbitControls.minPolarAngle = Math.PI / 4;
+    // orbitControls.maxPolarAngle = Math.PI * 3 / 4;
+    // orbitControls.minAzimuthAngle = -Math.PI / 3;
+    // orbitControls.maxAzimuthAngle = Math.PI / 3;
+
     isThreeJSInitialized = true;
 
     // Load the phone model - check state for which device to use
@@ -197,123 +212,6 @@ function initThreeJS() {
 
     // Start animation loop
     animateThreeJS();
-}
-
-function getFallbackScreenLayout(config) {
-    const aspectRatio = config.aspectRatio;
-    const planeHeight = 4.3 * config.screenHeightFactor;
-    const planeWidth = planeHeight * aspectRatio;
-
-    return {
-        planeWidth,
-        planeHeight,
-        offset: {
-            x: config.screenOffset.x,
-            y: config.screenOffset.y,
-            z: config.screenOffset.z
-        }
-    };
-}
-
-function findBestScreenMesh(model) {
-    let bestMesh = null;
-    let bestScore = -Infinity;
-
-    model.traverse((child) => {
-        if (!child.isMesh || !child.geometry) return;
-
-        child.geometry.computeBoundingBox();
-        const box = child.geometry.boundingBox;
-        if (!box) return;
-
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        const area = size.x * size.y;
-        if (!Number.isFinite(area) || area <= 0) return;
-
-        const name = (child.name || '').toLowerCase();
-        const matName = (child.material?.name || '').toLowerCase();
-
-        let score = area;
-        if (matName.includes('glass')) score *= 4;
-        if (name.includes('screen') || name.includes('display')) score *= 5;
-        if (matName.includes('screen') || matName.includes('display')) score *= 5;
-        if (name.includes('front') || matName.includes('front')) score *= 1.5;
-        if (name.includes('back') || matName.includes('back')) score *= 0.2;
-        if (name.includes('camera') || matName.includes('camera')) score *= 0.15;
-
-        if (score > bestScore) {
-            bestScore = score;
-            bestMesh = child;
-        }
-    });
-
-    return bestMesh;
-}
-
-function computeScreenLayoutFromMesh(model, targetMesh) {
-    if (!model || !targetMesh?.geometry) return null;
-
-    targetMesh.geometry.computeBoundingBox();
-    const localBox = targetMesh.geometry.boundingBox;
-    if (!localBox) return null;
-
-    model.updateMatrixWorld(true);
-
-    const modelWorldInverse = new THREE.Matrix4().copy(model.matrixWorld).invert();
-    const meshToModelMatrix = new THREE.Matrix4().multiplyMatrices(modelWorldInverse, targetMesh.matrixWorld);
-    const bounds = localBox.clone().applyMatrix4(meshToModelMatrix);
-
-    const size = bounds.getSize(new THREE.Vector3());
-    if (size.x <= 0 || size.y <= 0) return null;
-
-    const center = bounds.getCenter(new THREE.Vector3());
-
-    // Slightly overscan and push forward to avoid visible seams at the edges.
-    const overscan = 1.008;
-    const zPush = 0.002;
-
-    return {
-        planeWidth: size.x * overscan,
-        planeHeight: size.y * overscan,
-        offset: {
-            x: center.x,
-            y: center.y,
-            z: bounds.max.z + zPush
-        }
-    };
-}
-
-function resolveScreenLayout(model, config, preferredMesh) {
-    const fallback = getFallbackScreenLayout(config);
-    const computed = computeScreenLayoutFromMesh(model, preferredMesh);
-
-    if (!computed) return fallback;
-
-    const validNumbers =
-        Number.isFinite(computed.planeWidth) && computed.planeWidth > 0 &&
-        Number.isFinite(computed.planeHeight) && computed.planeHeight > 0 &&
-        Number.isFinite(computed.offset?.x) &&
-        Number.isFinite(computed.offset?.y) &&
-        Number.isFinite(computed.offset?.z);
-
-    if (!validNumbers) return fallback;
-
-    // Guard rails: if mesh detection returns extreme values, use tuned fallback.
-    const widthRatio = computed.planeWidth / fallback.planeWidth;
-    const heightRatio = computed.planeHeight / fallback.planeHeight;
-    const offsetDelta = {
-        x: Math.abs(computed.offset.x - fallback.offset.x),
-        y: Math.abs(computed.offset.y - fallback.offset.y),
-        z: Math.abs(computed.offset.z - fallback.offset.z)
-    };
-
-    const isReasonable =
-        widthRatio >= 0.35 && widthRatio <= 2.8 &&
-        heightRatio >= 0.35 && heightRatio <= 2.8 &&
-        offsetDelta.x <= 1.5 && offsetDelta.y <= 1.5 && offsetDelta.z <= 1.2;
-
-    return isReasonable ? computed : fallback;
 }
 
 // Load the phone 3D model based on currentDeviceModel
@@ -343,23 +241,67 @@ function loadPhoneModel() {
             baseModelScale = 3.75 / maxDim;
             phoneModel.scale.setScalar(baseModelScale);
 
-            // Detect actual screen area from model geometry.
-            screenMesh = findBestScreenMesh(phoneModel);
-            screenLayout = resolveScreenLayout(phoneModel, config, screenMesh);
+            // Log all meshes to help identify the screen
+            console.log('Phone model meshes:');
+            let blackMeshes = [];
+            phoneModel.traverse((child) => {
+                if (child.isMesh) {
+                    console.log('  Mesh:', child.name, '| Material:', child.material?.name);
+
+                    // Look for screen mesh - in this model it's likely "black" material
+                    const name = (child.name || '').toLowerCase();
+                    const matName = (child.material?.name || '').toLowerCase();
+
+                    if (matName === 'black') {
+                        blackMeshes.push(child);
+                    }
+
+                    if (name.includes('screen') || name.includes('display') ||
+                        matName.includes('screen') || matName.includes('display') ||
+                        matName.includes('emission') || matName.includes('emissive')) {
+                        screenMesh = child;
+                        console.log('  -> Identified as screen mesh');
+                    }
+                }
+            });
+
+            // Find the front glass - that's where the screen actually is
+            // Don't use black meshes, those are small elements like notch/dynamic island
+            let glassMeshes = [];
+            phoneModel.traverse((child) => {
+                if (child.isMesh) {
+                    const matName = (child.material?.name || '').toLowerCase();
+                    if (matName === 'glass') {
+                        child.geometry.computeBoundingBox();
+                        const box = child.geometry.boundingBox;
+                        const size = new THREE.Vector3();
+                        box.getSize(size);
+                        const area = size.x * size.y;
+                        glassMeshes.push({ mesh: child, area, size });
+                        console.log('  Glass mesh:', child.name, 'size:', size.x.toFixed(3), 'x', size.y.toFixed(3), 'area:', area.toFixed(3));
+                    }
+                }
+            });
+
+            // Use the largest glass mesh (front screen glass)
+            if (glassMeshes.length > 0) {
+                glassMeshes.sort((a, b) => b.area - a.area);
+                screenMesh = glassMeshes[0].mesh;
+                console.log('  -> Using largest glass mesh as screen:', screenMesh.name);
+            }
 
             // Create a pivot group for rotation around screen center
             const config = deviceConfigs[currentDeviceModel] || deviceConfigs.iphone;
-            const screenOffset = screenLayout.offset;
-            const centeredPosition = phoneModel.position.clone();
+            const screenOffset = config.screenOffset;
 
             phonePivot = new THREE.Group();
 
             // Offset the phone model so the screen center is at the pivot's origin
-            phoneModel.position.copy(centeredPosition).sub(new THREE.Vector3(
-                screenOffset.x * baseModelScale,
-                screenOffset.y * baseModelScale,
-                screenOffset.z * baseModelScale
-            ));
+            phoneModel.position.set(
+                -screenOffset.x * baseModelScale,
+                -screenOffset.y * baseModelScale,
+                -screenOffset.z * baseModelScale
+            );
 
             phonePivot.add(phoneModel);
             threeScene.add(phonePivot);
@@ -391,8 +333,13 @@ function loadPhoneModel() {
                     updateCanvas();
                 }
             }
+
+            console.log('Phone model loaded successfully');
         },
-        undefined,
+        (progress) => {
+            const percent = Math.round(progress.loaded / progress.total * 100);
+            console.log('Loading phone model... ' + percent + '%');
+        },
         (error) => {
             console.error('Error loading phone model:', error);
         }
@@ -461,21 +408,16 @@ function switchPhoneModel(deviceType) {
             baseModelScale = 3.75 / maxDim;
             phoneModel.scale.setScalar(baseModelScale);
 
-            // Detect actual screen area from model geometry.
-            screenMesh = findBestScreenMesh(phoneModel);
-            screenLayout = resolveScreenLayout(phoneModel, config, screenMesh);
-
             // Create a pivot group for rotation around screen center
-            const screenOffset = screenLayout.offset;
-            const centeredPosition = phoneModel.position.clone();
+            const screenOffset = config.screenOffset;
             phonePivot = new THREE.Group();
 
             // Offset the phone model so the screen center is at the pivot's origin
-            phoneModel.position.copy(centeredPosition).sub(new THREE.Vector3(
-                screenOffset.x * baseModelScale,
-                screenOffset.y * baseModelScale,
-                screenOffset.z * baseModelScale
-            ));
+            phoneModel.position.set(
+                -screenOffset.x * baseModelScale,
+                -screenOffset.y * baseModelScale,
+                -screenOffset.z * baseModelScale
+            );
 
             phonePivot.add(phoneModel);
             threeScene.add(phonePivot);
@@ -506,8 +448,13 @@ function switchPhoneModel(deviceType) {
                     updateCanvas();
                 }
             }
+
+            console.log(deviceType + ' model loaded successfully');
         },
-        undefined,
+        (progress) => {
+            const percent = Math.round(progress.loaded / progress.total * 100);
+            console.log('Loading ' + deviceType + ' model... ' + percent + '%');
+        },
         (error) => {
             console.error('Error loading ' + deviceType + ' model:', error);
         }
@@ -548,26 +495,22 @@ function loadCachedPhoneModel(deviceType) {
                 const modelBaseScale = 3.75 / maxDim;
                 model.scale.setScalar(modelBaseScale);
 
-                // Detect actual screen area for this cached model.
-                const cachedScreenMesh = findBestScreenMesh(model);
-                const cachedLayout = resolveScreenLayout(model, config, cachedScreenMesh);
-
                 // Create pivot for this model
-                const screenOffset = cachedLayout.offset;
+                const screenOffset = config.screenOffset;
                 const pivot = new THREE.Group();
-                const centeredPosition = model.position.clone();
 
-                model.position.copy(centeredPosition).sub(new THREE.Vector3(
-                    screenOffset.x * modelBaseScale,
-                    screenOffset.y * modelBaseScale,
-                    screenOffset.z * modelBaseScale
-                ));
+                model.position.set(
+                    -screenOffset.x * modelBaseScale,
+                    -screenOffset.y * modelBaseScale,
+                    -screenOffset.z * modelBaseScale
+                );
 
                 pivot.add(model);
 
                 // Create screen plane for this model
-                const planeHeight = cachedLayout.planeHeight;
-                const planeWidth = cachedLayout.planeWidth;
+                const aspectRatio = config.aspectRatio;
+                const planeHeight = 4.3 * config.screenHeightFactor;
+                const planeWidth = planeHeight * aspectRatio;
 
                 const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
                 const material = new THREE.MeshBasicMaterial({
@@ -591,12 +534,12 @@ function loadCachedPhoneModel(deviceType) {
                     model: model,
                     pivot: pivot,
                     screenPlane: screenPlane,
-                    screenLayout: cachedLayout,
                     baseScale: modelBaseScale,
                     loaded: true,
                     loading: false
                 };
 
+                console.log('Cached ' + deviceType + ' model for side previews');
                 resolve(phoneModelCache[deviceType]);
             },
             undefined,
@@ -628,10 +571,11 @@ function createScreenOverlay() {
     }
 
     const config = deviceConfigs[currentDeviceModel] || deviceConfigs.iphone;
-    const layout = screenLayout || getFallbackScreenLayout(config);
 
-    const planeHeight = layout.planeHeight;
-    const planeWidth = layout.planeWidth;
+    // Use device-specific aspect ratio and screen size
+    const aspectRatio = config.aspectRatio;
+    const planeHeight = 4.3 * config.screenHeightFactor;
+    const planeWidth = planeHeight * aspectRatio;
 
     const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
     const material = new THREE.MeshBasicMaterial({
@@ -642,7 +586,7 @@ function createScreenOverlay() {
     customScreenPlane = new THREE.Mesh(geometry, material);
 
     // Position at center of phone, slightly in front of glass
-    const screenOffset = layout.offset;
+    const screenOffset = config.screenOffset;
     customScreenPlane.position.set(screenOffset.x, screenOffset.y, screenOffset.z);
 
     // Counter-rotate the screen to cancel out the model's base rotation
@@ -660,6 +604,8 @@ function createScreenOverlay() {
     // basePositionOffset is no longer needed since we use pivot-based rotation
     basePositionOffset.y = 0;
 
+    console.log('Created screen overlay for ' + currentDeviceModel + ' at:', customScreenPlane.position);
+    console.log('Plane size:', planeWidth.toFixed(4), 'x', planeHeight.toFixed(4));
 }
 
 // Create a rounded corner version of the screenshot
@@ -731,6 +677,7 @@ function updateScreenTexture() {
     if (customScreenPlane) {
         customScreenPlane.material.dispose();
         customScreenPlane.material = screenMaterial;
+        console.log('Applied rounded texture to custom screen plane');
     }
 
     // Trigger render update
@@ -744,6 +691,8 @@ function setThreeJSRotation(rotX, rotY, rotZ) {
     // Add the device's base model rotation to the user's rotation
     const config = deviceConfigs[currentDeviceModel] || deviceConfigs.iphone;
     const modelRot = config.modelRotation || { x: 0, y: 0, z: 0 };
+
+    console.log('setThreeJSRotation:', currentDeviceModel, 'modelRot:', modelRot, 'user:', rotX, rotY, rotZ);
 
     // Rotate the pivot (which rotates around the screen center)
     phonePivot.rotation.x = (rotX + modelRot.x) * Math.PI / 180;
@@ -807,7 +756,7 @@ function renderThreeJSToCanvas(targetCanvas, width, height) {
 
             // Position: match 2D behavior where available space depends on (1 - scale)
             // This ensures same percentages look the same in 2D and 3D
-            // X uses smaller factor (1.1) since canvas is taller than wide (400x630 aspect)
+            // X uses smaller factor (1.1) since canvas is taller than wide (400x700 aspect)
             const availableSpaceY = (1 - screenshotScale) * 2;
             const availableSpaceX = (1 - screenshotScale) * 0.9;
             const xOffset = ((ss.x - 50) / 50) * availableSpaceX;
@@ -835,7 +784,7 @@ function renderThreeJSToCanvas(targetCanvas, width, height) {
     threeRenderer.setClearColor(0x000000, 0); // Fully transparent clear color
 
     // Temporarily resize renderer
-    const oldSize = { width: 400, height: 630 };
+    const oldSize = { width: 400, height: 700 };
     threeRenderer.setSize(dims.width, dims.height);
     threeCamera.aspect = dims.width / dims.height;
     threeCamera.updateProjectionMatrix();
@@ -972,7 +921,7 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
     threeRenderer.setClearColor(0x000000, 0); // Fully transparent clear color
 
     // Temporarily resize renderer
-    const oldSize = { width: 400, height: 630 };
+    const oldSize = { width: 400, height: 700 };
     threeRenderer.setSize(dims.width, dims.height);
     threeCamera.aspect = dims.width / dims.height;
     threeCamera.updateProjectionMatrix();
@@ -1101,20 +1050,6 @@ let isAltDragging = false;
 let lastMouseX = 0;
 let lastMouseY = 0;
 let dragUpdatePending = false;
-let dragScreenshotIndex3D = -1;
-let longPressTimer3D = null;
-const LONG_PRESS_DELAY_MS = 220;
-const LONG_PRESS_MOVE_CANCEL_PX = 4;
-
-function cancel3DCanvasDrag() {
-    isDragging3D = false;
-    isAltDragging = false;
-    dragScreenshotIndex3D = -1;
-    const canvas = document.getElementById('preview-canvas');
-    if (canvas) {
-        canvas.style.cursor = getUse3D() ? 'grab' : '';
-    }
-}
 
 function getUse3D() {
     if (typeof getScreenshotSettings === 'function') {
@@ -1128,67 +1063,29 @@ function setup3DCanvasInteraction() {
     const canvas = document.getElementById('preview-canvas');
     if (!canvas) return;
 
-    function clearLongPressTimer() {
-        if (longPressTimer3D) {
-            clearTimeout(longPressTimer3D);
-            longPressTimer3D = null;
-        }
-    }
-
     canvas.addEventListener('mousedown', (e) => {
         if (typeof state !== 'undefined' && getUse3D()) {
             isDragging3D = true;
             isAltDragging = e.altKey;
-            dragScreenshotIndex3D = state.selectedIndex;
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
             canvas.style.cursor = isAltDragging ? 'move' : 'grabbing';
-
-            // Support click-hold to move without requiring Alt.
-            // If user starts moving immediately, we keep rotate mode.
-            clearLongPressTimer();
-            if (!isAltDragging) {
-                longPressTimer3D = setTimeout(() => {
-                    if (isDragging3D) {
-                        isAltDragging = true;
-                        canvas.style.cursor = 'move';
-                    }
-                    longPressTimer3D = null;
-                }, LONG_PRESS_DELAY_MS);
-            }
         }
     });
 
     canvas.addEventListener('mousemove', (e) => {
         if (!isDragging3D || typeof state === 'undefined' || !getUse3D()) return;
-
-        // Safety: if selected screenshot changed during a drag, stop drag so
-        // movement updates are never applied to a different screenshot.
-        if (dragScreenshotIndex3D !== state.selectedIndex) {
-            clearLongPressTimer();
-            cancel3DCanvasDrag();
-            return;
-        }
-
         // Don't rotate 3D device while dragging an element
         const wrapper = document.getElementById('canvas-wrapper');
         if (wrapper && wrapper.classList.contains('element-dragging')) {
-            cancel3DCanvasDrag();
+            isDragging3D = false;
+            isAltDragging = false;
+            canvas.style.cursor = '';
             return;
         }
 
         const deltaX = e.clientX - lastMouseX;
         const deltaY = e.clientY - lastMouseY;
-
-        // If user moved quickly after mousedown, treat as rotate intent
-        // and cancel pending long-press move switch.
-        if (longPressTimer3D && !isAltDragging) {
-            const movedEnough = Math.abs(deltaX) > LONG_PRESS_MOVE_CANCEL_PX || Math.abs(deltaY) > LONG_PRESS_MOVE_CANCEL_PX;
-            if (movedEnough) {
-                clearLongPressTimer();
-            }
-        }
-
         lastMouseX = e.clientX;
         lastMouseY = e.clientY;
 
@@ -1198,20 +1095,13 @@ function setup3DCanvasInteraction() {
 
         if (isAltDragging) {
             // Alt+drag: move position (x, y)
-            const xSlider = document.getElementById('screenshot-x');
-            const ySlider = document.getElementById('screenshot-y');
-            const xMin = xSlider ? parseFloat(xSlider.min) : -80;
-            const xMax = xSlider ? parseFloat(xSlider.max) : 180;
-            const yMin = ySlider ? parseFloat(ySlider.min) : -80;
-            const yMax = ySlider ? parseFloat(ySlider.max) : 180;
-
-            ss.x = Math.max(xMin, Math.min(xMax, ss.x + deltaX * 0.2));
-            ss.y = Math.max(yMin, Math.min(yMax, ss.y + deltaY * 0.2));
+            ss.x = Math.max(0, Math.min(100, ss.x + deltaX * 0.2));
+            ss.y = Math.max(0, Math.min(100, ss.y + deltaY * 0.2));
 
             // Update sliders
-            if (xSlider) xSlider.value = ss.x;
+            document.getElementById('screenshot-x').value = ss.x;
             document.getElementById('screenshot-x-value').textContent = Math.round(ss.x) + '%';
-            if (ySlider) ySlider.value = ss.y;
+            document.getElementById('screenshot-y').value = ss.y;
             document.getElementById('screenshot-y-value').textContent = Math.round(ss.y) + '%';
         } else {
             // Regular drag: rotate
@@ -1236,30 +1126,24 @@ function setup3DCanvasInteraction() {
             requestAnimationFrame(() => {
                 dragUpdatePending = false;
                 if (typeof updateCanvas === 'function') {
-                    updateCanvas({
-                        skipSave: true,
-                        skipInlinePreviews: true,
-                        skip3DTextureUpdate: true
-                    });
+                    updateCanvas();
                 }
             });
         }
     });
 
-    window.addEventListener('mouseup', () => {
-        clearLongPressTimer();
+    canvas.addEventListener('mouseup', () => {
         if (isDragging3D) {
-            cancel3DCanvasDrag();
-            if (typeof updateCanvas === 'function') {
-                updateCanvas();
-            }
+            isDragging3D = false;
+            isAltDragging = false;
+            canvas.style.cursor = getUse3D() ? 'grab' : '';
         }
     });
 
     canvas.addEventListener('mouseleave', () => {
-        clearLongPressTimer();
         if (isDragging3D) {
-            cancel3DCanvasDrag();
+            isDragging3D = false;
+            isAltDragging = false;
             canvas.style.cursor = '';
         }
     });

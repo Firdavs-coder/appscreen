@@ -1,0 +1,8 @@
+- The 3D device is not working completely.
+
+- When I generate preview with AI 'Fully layout generate' feature, I get this result. 
+The first problem is the screenshot is not correctly applied onto the screen. 
+The second problem is the movement speed of the device while dragging is too slow, 
+it is freezing. However, when I upload screenshots manually, 
+it is fast and applied properly onto the screen.
+

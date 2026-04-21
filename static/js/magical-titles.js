@@ -938,14 +938,13 @@ function buildAiLayoutPrompt(analysisScreens, sourceLang, sourceLangName) {
 Analyze the screenshots and create a polished, high-end App Store / Play Store campaign design.
 
 Goal:
-- Use the screenshot's dominant colors to shape the background.
+- Analyze the screenshot's dominant colors to inform the background design.
 - Keep all screens visually cohesive as one campaign. Do NOT invent totally unrelated backgrounds per screen.
 - Use one shared visual language: same family of blues/purples/charcoals/whites or the closest palette from the screenshots, with only subtle per-screen variation.
 - Write clear, concise headline and subheadline copy that matches the visible UI.
 - Make the headline feel like a hero banner: very large, bold, and readable from a distance.
-- Choose screenshot position and sizing so the device feels dominant and premium.
-- ALWAYS use a 2D device treatment and make the screenshot look like a real mockup, not a flat crop.
-- If helpful, add lightweight decorative elements such as icons, emojis, labels, shapes, arrows, or soft UI accents.
+- Do NOT modify screenshot positioning, scale, or rotation. The existing coordinates are optimal and should be preserved.
+- Focus only on background colors + titles/subtitles.
 
 Rules:
 - Return ONLY valid JSON.
@@ -955,15 +954,12 @@ Rules:
 - Keep subheadlines shorter than a sentence when possible and still readable.
 - Prefer strong contrast between text and background.
 - Use hex colors only.
-- Keep screenshot settings within the editor's ranges: x/y 0-100, scale 30-100, rotation -45 to 45, cornerRadius 0-80, opacity 0-100.
-- Use position "top" or "bottom" only.
-- Use use3D=false for every screenshot.
-- Keep device2D="${preferredDevice2DModel}" so generated layouts match the project's existing 2D device framing.
+- IMPORTANT: Do NOT generate screenshot positioning (x, y, scale, rotation, cornerRadius, perspective). These will be IGNORED.
+- Only generate background colors and text (headlines/subheadlines).
+- Use position "top" or "bottom" only for text.
 - Keep headlineSize and subheadlineSize substantially larger than body text; do not make text tiny.
 - Favor 1-3 line headlines and compact subheadlines.
-- Do not change rotation3D.x, rotation3D.y, or rotation3D.z from the existing screenshot values.
-- Do not use popouts.
-- Prefer elements over popouts for any decoration.
+- Do not use elements or popouts.
 
 Return this schema:
 {
@@ -986,28 +982,14 @@ Return this schema:
         "noiseIntensity": 10
       },
       "screenshot": {
-        "scale": 70,
-        "x": 50,
-        "y": 60,
-        "rotation": 0,
-        "perspective": 0,
-        "cornerRadius": 24,
-        "use3D": false,
-        "device2D": "${preferredDevice2DModel}",
-        "shadow": {
-          "enabled": true,
-          "color": "#000000",
-          "blur": 40,
-          "opacity": 30,
-          "x": 0,
-          "y": 20
-        },
-        "frame": {
-          "enabled": false,
-          "color": "#1d1d1f",
-          "width": 12,
-          "opacity": 100
-        }
+                "shadow": {
+                    "enabled": true,
+                    "color": "#000000",
+                    "blur": 40,
+                    "opacity": 30,
+                    "x": 0,
+                    "y": 20
+                }
       },
       "text": {
         "headlineEnabled": true,
@@ -1047,8 +1029,7 @@ Return this schema:
         "subheadlineStrikethrough": false,
         "subheadlineColor": "#ffffff",
         "subheadlineOpacity": 70
-      },
-            "elements": []
+            }
     }
   ]
 }
@@ -1101,31 +1082,28 @@ ${screenSummaries}`;
 function applyGeneratedLayoutToScreenshot(screenshot, plan, sourceLang) {
     if (!screenshot || !plan) return;
 
-    const preferredDevice2D = screenshot.screenshot?.device2D
-        || state.defaults?.screenshot?.device2D
-        || 'apple-iphone-15-pro-max-2023-medium';
-
-    const preservedRotation3D = screenshot.screenshot?.rotation3D
-        ? JSON.parse(JSON.stringify(screenshot.screenshot.rotation3D))
-        : JSON.parse(JSON.stringify(state.defaults.screenshot.rotation3D || { x: 0, y: 0, z: 0 }));
-
     if (plan.background) {
-        screenshot.background = mergeDeep(screenshot.background || JSON.parse(JSON.stringify(state.defaults.background)), plan.background);
+        const currentBackground = screenshot.background || JSON.parse(JSON.stringify(state.defaults.background));
+        const nextBackground = {
+            type: plan.background.type === 'solid' ? 'solid' : 'gradient',
+            gradient: plan.background.gradient || currentBackground.gradient,
+            solid: plan.background.solid || currentBackground.solid,
+            overlayColor: plan.background.overlayColor || currentBackground.overlayColor,
+            overlayOpacity: clamp(plan.background.overlayOpacity, 0, 100, currentBackground.overlayOpacity || 0),
+            noise: false,
+            noiseIntensity: currentBackground.noiseIntensity || 10,
+            image: null,
+            imageFit: currentBackground.imageFit || 'cover',
+            imageBlur: 0
+        };
+
+        screenshot.background = mergeDeep(currentBackground, nextBackground);
     }
 
-    if (plan.screenshot) {
-        screenshot.screenshot = mergeDeep(screenshot.screenshot || JSON.parse(JSON.stringify(state.defaults.screenshot)), plan.screenshot);
+    // Preserve screenshot transform + device settings exactly as-is.
+    if (!screenshot.screenshot) {
+        screenshot.screenshot = JSON.parse(JSON.stringify(state.defaults.screenshot));
     }
-
-    screenshot.screenshot.use3D = plan.screenshot?.use3D === true;
-    screenshot.screenshot.device3D = plan.screenshot?.device3D || screenshot.screenshot.device3D || 'iphone';
-    screenshot.screenshot.device2D = preferredDevice2D;
-    screenshot.screenshot.rotation3D = preservedRotation3D;
-    screenshot.screenshot.x = clamp(screenshot.screenshot.x, 0, 100, 50);
-    screenshot.screenshot.y = clamp(screenshot.screenshot.y, 0, 100, 50);
-    screenshot.screenshot.scale = clamp(screenshot.screenshot.scale, 30, 100, 70);
-    screenshot.screenshot.rotation = clamp(screenshot.screenshot.rotation, -45, 45, 0);
-    screenshot.screenshot.cornerRadius = clamp(screenshot.screenshot.cornerRadius, 0, 80, 24);
 
     const text = screenshot.text ? normalizeTextSettings(screenshot.text) : normalizeTextSettings(state.defaults.text);
     const headline = plan.text?.headlines?.[sourceLang] || plan.text?.headline || '';
@@ -1185,13 +1163,15 @@ function applyGeneratedLayoutToScreenshot(screenshot, plan, sourceLang) {
 
     screenshot.text = text;
 
-    if (Array.isArray(plan.elements)) {
-        screenshot.elements = plan.elements.map((element, index) => ({
-            id: element.id || crypto.randomUUID(),
-            ...element,
-            name: element.name || `AI Element ${index + 1}`
-        }));
+    // Remove legacy AI-generated decorative elements from older generations.
+    if (Array.isArray(screenshot.elements)) {
+        screenshot.elements = screenshot.elements.filter((element) => {
+            const elementName = typeof element?.name === 'string' ? element.name : '';
+            return !elementName.startsWith('AI Element ');
+        });
     }
+
+    // Intentionally ignore AI elements/popouts for performance and consistency.
 }
 
 function normalizeAiLayoutScreens(rawScreens, analysisScreens) {

@@ -65,12 +65,20 @@ function updateCanvas(options = {}) {
         const img = screenshot ? getScreenshotImage(screenshot) : null;
         const ss = getScreenshotSettings();
         const use3D = ss.use3D || false;
-        if (use3D && img && typeof renderThreeJSToCanvas === 'function' && phoneModelLoaded) {
-            // In 3D mode, update the screen texture and render the phone model
-            if (!skip3DTextureUpdate && typeof updateScreenTexture === 'function') {
-                updateScreenTexture();
+        if (use3D) {
+            if (typeof showThreeJS === 'function') {
+                showThreeJS(true);
             }
-            renderThreeJSToCanvas(canvas, dims.width, dims.height);
+
+            // In 3D mode, prefer per-screenshot renderer (handles device-specific cached models).
+            if (typeof renderThreeJSForScreenshot === 'function') {
+                renderThreeJSForScreenshot(canvas, dims.width, dims.height, state.selectedIndex);
+            } else if (typeof renderThreeJSToCanvas === 'function') {
+                if (!skip3DTextureUpdate && typeof updateScreenTexture === 'function') {
+                    updateScreenTexture();
+                }
+                renderThreeJSToCanvas(canvas, dims.width, dims.height);
+            }
         } else if (!use3D) {
             // In 2D mode, draw the screenshot normally
             drawScreenshot();
@@ -179,6 +187,10 @@ function updateInlinePreviews() {
 
 function selectInlineScreenshot(index) {
     if (index === state.selectedIndex) return;
+
+    if (typeof cancel3DCanvasDrag === 'function') {
+        cancel3DCanvasDrag();
+    }
     
     state.selectedIndex = index;
     updateScreenshotList();
@@ -235,14 +247,12 @@ function renderScreenshotToCanvas(index, targetCanvas, targetCtx, dims, previewS
     const settings = screenshot.screenshot;
     const use3D = settings.use3D || false;
 
-    if (img) {
-        if (use3D && typeof renderThreeJSForScreenshot === 'function' && phoneModelLoaded) {
-            // Render 3D phone model for this specific screenshot
-            renderThreeJSForScreenshot(targetCanvas, dims.width, dims.height, index);
-        } else {
-            // Draw 2D screenshot using localized image
-            drawScreenshotToContext(targetCtx, dims, img, settings);
-        }
+    if (use3D && typeof renderThreeJSForScreenshot === 'function') {
+        // Render 3D phone model for this specific screenshot
+        renderThreeJSForScreenshot(targetCanvas, dims.width, dims.height, index);
+    } else if (img) {
+        // Draw 2D screenshot using localized image
+        drawScreenshotToContext(targetCtx, dims, img, settings);
     }
 
     // Elements above screenshot
