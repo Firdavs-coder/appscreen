@@ -2,11 +2,7 @@
 
 ## Demo video
 
-<video controls width="100%">
-	<source src="appscreen.mp4" type="video/mp4">
-	Your browser does not support the video tag.
-</video>
-
+https://github.com/user-attachments/assets/c11717ef-bd78-41cf-b6eb-e792a37a17dd
 
 Django fullstack backend for Appscreen with PostgreSQL persistence, session-based auth, project snapshots, and usage tracking.
 
@@ -17,7 +13,10 @@ The backend also serves the Django templates from the repository-level `template
 - User accounts with email/password registration and login
 - Active user sessions (token + expiration) for authenticated requests
 - Full project payloads as JSONB so the frontend can save complete editor state
-- Usage events for AI token spend, screenshots generated, and any future metrics
+- Usage even
+
+
+ts for AI token spend, screenshots generated, and any future metrics
 
 ## Run locally
 
