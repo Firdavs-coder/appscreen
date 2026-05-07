@@ -29,3 +29,5 @@ __pycache__/
 media/
 
 .venv/
+
+.env
