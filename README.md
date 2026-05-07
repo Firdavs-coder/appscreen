@@ -1,5 +1,13 @@
 # Appscreen Backend
 
+## Demo video
+
+<video controls width="100%">
+	<source src="appscreen.mp4" type="video/mp4">
+	Your browser does not support the video tag.
+</video>
+
+
 Django fullstack backend for Appscreen with PostgreSQL persistence, session-based auth, project snapshots, and usage tracking.
 
 The backend also serves the Django templates from the repository-level `templates/` folder and static assets from `static/`.
